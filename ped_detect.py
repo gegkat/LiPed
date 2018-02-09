@@ -6,6 +6,7 @@ import pdb
 import scipy.interpolate 
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 class LiPed:
     def __init__(self, laser_file, pedestrian_file):
@@ -45,10 +46,16 @@ class LiPed:
         plt.plot(lx[self.in_view], ly[self.in_view], '.b')
         plt.plot(lx[~self.in_view], ly[~self.in_view], '.r')
         for i in range(len(self.ped_x[frame])):
-            pdb.set_trace()
             plt.plot(self.ped_x[frame][i], self.ped_y[frame][i], 'x')
 
         plt.show()
+
+
+    def movie(self, frames):
+        for frame in frames:
+            plt.clf()
+            self.plot(frame)
+            time.sleep(0.05)
 
 
 def load_laser_data(pickle_file):
@@ -124,6 +131,6 @@ def load_pedestrian_data(pickle_file):
 
 if __name__ == "__main__":
     lp = LiPed('lasers.p', 'persons.p')
-    lp.plot(0)
+    lp.movie(range(20))
 
 
