@@ -4,6 +4,7 @@ from liped import LiPed
 import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Activation
+import pdb
 
 class SimpleLiPed(LiPed):
     def __init__(self, *args, **kwargs):
@@ -13,7 +14,9 @@ class SimpleLiPed(LiPed):
 
     def _build_nn(self):
         model = Sequential()
-        model.add(Dense(128, activation='relu', input_shape=(15,)))
+        model.add(Dense(300, activation='relu', input_shape=(15,)))
+        # model.add(Dense(1280, activation='relu'))
+        # model.add(Dense(1280, activation='relu'))
         model.add(Dense(1, activation='sigmoid'))
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
@@ -38,12 +41,13 @@ class SimpleLiPed(LiPed):
                         self.Y_train.append(1)
                     else:
                         self.Y_train.append(0)
+        pdb.set_trace()
         self.X_train = np.array(self.X_train)
         self.Y_train = np.array(self.Y_train)
 
 
     def train(self):
         self.nn.fit(self.X_train, self.Y_train, 
-                    batch_size=32, epochs=1, verbose=1)
+                    batch_size=128, epochs=30, verbose=1)
 
     # TODO: write evaluation function

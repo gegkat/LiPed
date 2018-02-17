@@ -101,3 +101,9 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# pickle files
+*.p
+
+# archive dir
+archive/
