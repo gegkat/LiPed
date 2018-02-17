@@ -16,13 +16,17 @@ if __name__ == '__main__':
         help='LiPed type to train')
     parser.add_argument('-i', '--init', nargs=2,
         help='initial load of raw data, else will load preprocessed data')
+    parser.add_argument('-e', '--epochs', type=int, default=5,
+        help='epochs to train')
+    parser.add_argument('-d', '--data_dir', default='data',
+        help='initial load of raw data, else will load preprocessed data') 
     args = parser.parse_args()
 
     lptype = LiPedType[args.type].value
     if args.init:
-        lp = lptype(True, args.init[0], args.init[1])
+        lp = lptype(True, args.init[0], args.init[1], args.data_dir)
     else:
-        lp = lptype()
+        lp = lptype(data_dir=args.data_dir)
 
     if args.plot:
         lp.plot(args.plot)
@@ -30,5 +34,5 @@ if __name__ == '__main__':
     # lp.movie(range(20))
 
     # train neural network
-    lp.train()
+    lp.train(epochs=args.epochs)
 

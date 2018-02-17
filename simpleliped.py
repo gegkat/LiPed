@@ -5,6 +5,12 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Activation
 from sklearn.model_selection import train_test_split
+import time
+import matplotlib.pyplot as plt
+import utils
+import os
+import pickle
+import json
 import pdb
 
 class SimpleLiPed(LiPed):
@@ -41,9 +47,9 @@ class SimpleLiPed(LiPed):
                     curr_x = data[idx + k*5 : idx + k*5 + 15]
                     angle = -1.69296944141 + (idx + k * 5) * 0.00872664619237
                     if np.any(np.logical_and(angles >= angle, angles < angle + 0.13089969288)):
-                    	X_pos.append(curr_x)
+                        X_pos.append(curr_x)
                     else:
-                    	X_neg.append(curr_x)
+                        X_neg.append(curr_x)
 
         X_pos = np.array(X_pos)
         X_neg = np.array(X_neg)
@@ -71,13 +77,55 @@ class SimpleLiPed(LiPed):
 
         # Train/test split with shuffle
         self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(X, Y, test_size=0.2, 
-        	shuffle=True, random_state=42)
+            shuffle=True, random_state=42)
 
 
 
-    def train(self):
-        self.nn.fit(self.X_train, self.Y_train, 
-                    batch_size=128, epochs=20, verbose=1, 
+    def train(self, epochs=5):
+        start_time = time.time()
+
+        history = self.nn.fit(self.X_train, self.Y_train, 
+                    batch_size=128, epochs=epochs, verbose=1, 
                     shuffle=True, validation_split=0.2)
 
-    # TODO: write evaluation function
+        end_time = time.time()
+        print('Trained model in {:.2f} seconds'.format(end_time-start_time))
+
+        timestamp = utils.get_timestamp()
+        udir = utils.mkdir_unique(timestamp)
+
+        # Save the model
+        print("Saving model weights and configuration file.")
+        self.nn.save(os.path.join(udir,'model.h5'))
+
+        with open(os.path.join(udir, 'history.csv'), 'w') as f:
+            for i in range(0, len(history.history['loss'])):
+                f.write("{}, {}\n".format(history.history['loss'][i], history.history['val_loss'][i]))
+
+        with open(os.path.join(udir, 'train_history_dict.pickle'), 'wb') as file_pi:
+            pickle.dump(history.history, file_pi)
+
+        # with open(os.path.join(udir, 'config.log'), 'w') as f:
+        #     f.write(json.dumps(vars(args)))
+        #     self.nn.summary(print_fn=lambda x: f.write(x + '\n'))
+
+        with open(os.path.join(udir, 'model.json'), 'w') as f:
+            f.write(json.dumps(self.nn.to_json()))
+
+        plt.figure()
+        plt.plot(history.history['loss'], label='training')
+        plt.plot(history.history['val_loss'], label='validation')
+        plt.legend()
+        plt.xlabel('# Epochs')
+        plt.ylabel('Loss')
+        plt.savefig(os.path.join(udir, 'loss_vs_epoch.png'), dpi=400)
+
+        plt.figure()
+        plt.plot(history.history['acc'], label='training')
+        plt.plot(history.history['val_acc'], label='validation')
+        plt.legend()
+        plt.xlabel('# Epochs')
+        plt.ylabel('Accuracy')
+        plt.savefig(os.path.join(udir, 'accuracy_vs_epoch.png'), dpi=400)
+
+        # TODO: write evaluation function

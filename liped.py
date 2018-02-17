@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 # import time
 
 class LiPed(object):
-    def __init__(self, init=False, laser_file='', pedestrian_file=''):
+    def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
         if init:
             lidar_time, lidar_range = load_laser_data(laser_file)
             ped_time, ped_pos = load_pedestrian_data(pedestrian_file)
@@ -21,15 +21,15 @@ class LiPed(object):
             # Keep only lidar scans that match pedestrian detections
             lidar_time = lidar_time[idx]
             lidar_range = lidar_range[idx,:]
-            np.save('data/lidar_time', lidar_time)
-            np.save('data/lidar_range', lidar_range)
-            np.save('data/ped_time', ped_time)
-            np.save('data/ped_pos', ped_pos)
+            np.save(data_dir + '/lidar_time', lidar_time)
+            np.save(data_dir + '/lidar_range', lidar_range)
+            np.save(data_dir + '/ped_time', ped_time)
+            np.save(data_dir + '/ped_pos', ped_pos)
         else:
-            lidar_time = np.load('data/lidar_time.npy')
-            lidar_range = np.load('data/lidar_range.npy')
-            ped_time = np.load('data/ped_time.npy')
-            ped_pos = np.load('data/ped_pos.npy')
+            lidar_time = np.load(data_dir + '/lidar_time.npy')
+            lidar_range = np.load(data_dir + '/lidar_range.npy')
+            ped_time = np.load(data_dir + '/ped_time.npy')
+            ped_pos = np.load(data_dir + '/ped_pos.npy')
 
         self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
         self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
