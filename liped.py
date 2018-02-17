@@ -8,18 +8,28 @@ import matplotlib.pyplot as plt
 # import time
 
 class LiPed(object):
-    def __init__(self, laser_file, pedestrian_file):
-        lidar_time, lidar_range = load_laser_data(laser_file)
-        ped_time, ped_x, ped_y = load_pedestrian_data(pedestrian_file)
-        # print(lidar_time.shape, lidar_range.shape, ped_time.shape, len(ped_x), len(ped_y))
+    def __init__(self, init=False, laser_file='', pedestrian_file=''):
+        if init:
+            lidar_time, lidar_range = load_laser_data(laser_file)
+            ped_time, ped_pos = load_pedestrian_data(pedestrian_file)
+            # print(lidar_time.shape, lidar_range.shape, ped_time.shape, len(ped_x), len(ped_y))
 
-        interp_func = interp1d(lidar_time, range(len(lidar_time)), 
-            kind='nearest', fill_value='extrapolate')
-        idx = interp_func(ped_time).astype(int)
+            interp_func = interp1d(lidar_time, range(len(lidar_time)), 
+                kind='nearest', fill_value='extrapolate')
+            idx = interp_func(ped_time).astype(int)
 
-        # Keep only lidar scans that match pedestrian detections
-        lidar_time = lidar_time[idx]
-        lidar_range = lidar_range[idx,:]
+            # Keep only lidar scans that match pedestrian detections
+            lidar_time = lidar_time[idx]
+            lidar_range = lidar_range[idx,:]
+            np.save('data/lidar_time', lidar_time)
+            np.save('data/lidar_range', lidar_range)
+            np.save('data/ped_time', ped_time)
+            np.save('data/ped_pos', ped_pos)
+        else:
+            lidar_time = np.load('data/lidar_time.npy')
+            lidar_range = np.load('data/lidar_range.npy')
+            ped_time = np.load('data/ped_time.npy')
+            ped_pos = np.load('data/ped_pos.npy')
 
         self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
         self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
@@ -27,8 +37,7 @@ class LiPed(object):
         self.lidar_time = lidar_time
         self.lidar_range = lidar_range
         self.ped_time = ped_time
-        self.ped_x = ped_x
-        self.ped_y = ped_y
+        self.ped_pos = ped_pos
 
         # Generic neural network
         self.nn = self._build_nn()
@@ -91,8 +100,7 @@ def load_pedestrian_data(pickle_file):
     print('parsing pedestrian data')
 
     ped_time = []
-    ped_x = []
-    ped_y = []
+    ped_pos = []
 
     prev_time = None
     
@@ -105,16 +113,13 @@ def load_pedestrian_data(pickle_file):
 
                 cur_time = object[0]
                 if cur_time == prev_time: 
-                    ped_x[-1].append(object[1])
-                    ped_y[-1].append(object[2])
+                    ped_pos[-1].append([object[1], object[2]])
                 else:
                     ped_time.append(object[0])
                     if object[1] is not None:
-                        ped_x.append([object[1]])
-                        ped_y.append([object[2]])
+                        ped_pos.append([[object[1], object[2]]])
                     else:
-                        ped_x.append([])
-                        ped_y.append([])
+                        ped_pos.append([])
 
                 if count > 1000:
                     break
@@ -123,4 +128,4 @@ def load_pedestrian_data(pickle_file):
 
     ped_time = np.array(ped_time)
 
-    return ped_time, ped_x, ped_y
+    return ped_time, ped_pos
