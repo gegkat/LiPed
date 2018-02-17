@@ -85,8 +85,8 @@ def load_laser_data(pickle_file):
                 lidar_time.append(object[0]) 
                 lidar_range.append( list(object[1]))
 
-                # if count > 1000:
-                    # break
+                if count > 1000:
+                    break
             except EOFError:
                 break
 
@@ -121,8 +121,8 @@ def load_pedestrian_data(pickle_file):
                     else:
                         ped_pos.append([])
 
-                # if count > 1000:
-                    # break
+                if count > 1000:
+                    break
             except EOFError:
                 break
 
