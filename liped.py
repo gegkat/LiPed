@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 import cPickle as pickle
-# import pdb
+import pdb
 from scipy.interpolate import interp1d
 import numpy as np
 import matplotlib.pyplot as plt
@@ -26,6 +26,7 @@ class LiPed(object):
             np.save(data_dir + '/ped_time', ped_time)
             np.save(data_dir + '/ped_pos', ped_pos)
         else:
+            print("Loading npy files")
             lidar_time = np.load(data_dir + '/lidar_time.npy')
             lidar_range = np.load(data_dir + '/lidar_range.npy')
             ped_time = np.load(data_dir + '/ped_time.npy')
@@ -58,10 +59,11 @@ class LiPed(object):
         lx = np.cos(self.lidar_angle) * self.lidar_range[frame, :]
         ly = np.sin(self.lidar_angle) * self.lidar_range[frame, :]
         plt.plot(lx[self.in_view], ly[self.in_view], '.b')
+        plt.ion()
         plt.plot(lx[~self.in_view], ly[~self.in_view], '.r')
-        for i in range(len(self.ped_x[frame])):
-            plt.plot(self.ped_x[frame][i], self.ped_y[frame][i], 'x')
-        plt.show()
+        for i in range(len(self.ped_pos[frame])):
+            plt.plot(self.ped_pos[frame][i][0], self.ped_pos[frame][i][1], 'x')
+        # plt.show()
 
     # def movie(self, frames):
     #     for frame in frames:

@@ -2,7 +2,7 @@
 
 from liped import LiPed
 import numpy as np
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Activation
 from sklearn.model_selection import train_test_split
 import time
@@ -79,7 +79,8 @@ class SimpleLiPed(LiPed):
         self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(X, Y, test_size=0.2, 
             shuffle=True, random_state=42)
 
-
+    def load(self, model_file):
+        self.nn = load_model(model_file)
 
     def train(self, epochs=5):
         start_time = time.time()
@@ -129,3 +130,48 @@ class SimpleLiPed(LiPed):
         plt.savefig(os.path.join(udir, 'accuracy_vs_epoch.png'), dpi=400)
 
         # TODO: write evaluation function
+
+    def predict(self):
+        for i in range(0, self.lidar_range.shape[0], 20):
+            plt.axis([0, 20, -10, 10])
+            self.predict_frame(i)
+            plt.title(i)
+            print(i)
+            plt.pause(0.01)
+            plt.cla()
+
+
+    def predict_frame(self, frame):
+        data = self.lidar_range[frame,:]
+        X = []
+        angles = []
+        ranges = []
+        for j in range(len(data) // 15):
+            idx = j * 15
+            for k in range(len(data[idx : idx + 15]) // 5):
+                curr_x = data[idx + k*5 : idx + k*5 + 15]
+                X.append(curr_x)
+                # angle1 = -1.69296944141 + (idx + k * 5 + 15/2) * 0.00872664619237
+                # angle2 = self.lidar_angle[idx + k*5 : idx + k*5 + 15].mean()
+                ranges.append(curr_x.min())
+                angles.append(self.lidar_angle[idx + k*5 : idx + k*5 + 15].mean())
+                
+
+        angles = np.array(angles)
+        ranges = np.array(ranges)
+
+        X = np.array(X)
+        y_pred = self.nn.predict(X)
+
+        # plt.subplot(2,1,1)
+        # plt.plot(angles, y_pred)
+
+        # plt.subplot(2,1,2)
+        self.plot(frame)
+        idx = y_pred[:,0] > 0.9
+        angles = angles[idx]
+        ranges = ranges[idx]
+        x = np.cos(angles) * ranges
+        y = np.sin(angles) * ranges
+        plt.plot(x, y, 'g.')
+

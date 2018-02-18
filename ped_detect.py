@@ -3,6 +3,7 @@
 import sys, argparse
 from enum import Enum
 from simpleliped import SimpleLiPed
+import pdb
 
 class LiPedType(Enum):
     simple = SimpleLiPed
@@ -20,6 +21,8 @@ if __name__ == '__main__':
         help='epochs to train')
     parser.add_argument('-d', '--data_dir', default='data',
         help='initial load of raw data, else will load preprocessed data') 
+    parser.add_argument('-l', '--load_model', nargs=1, 
+        help='load a trained model')
     args = parser.parse_args()
 
     lptype = LiPedType[args.type].value
@@ -34,5 +37,9 @@ if __name__ == '__main__':
     # lp.movie(range(20))
 
     # train neural network
-    lp.train(epochs=args.epochs)
+    if args.load_model:
+        lp.load(args.load_model[0])
+    else:
+        lp.train(epochs=args.epochs)
 
+    lp.predict()
