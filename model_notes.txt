@@ -1,0 +1,2 @@
+2018-02-17_14-05-40
+Simple NN, two layers of 300. Segmentation with length 15, stride 5. 
