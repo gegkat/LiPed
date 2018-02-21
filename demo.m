@@ -1,7 +1,10 @@
 function demo()
 
-a = load('2018-02-03-06-34-30-detected-persons.txt.mat');
-b = load('2018-02-03-06-34-30-laser-scan.txt.mat');
+a = load('data_full/2018-02-03-06-34-30-detected-persons.txt.mat');
+b = load('data_full/2018-02-03-06-34-30-laser-scan.txt.mat');
+
+% a = load('lidar-frame-2018-01-22-16-20-26-detected-persons.txt.mat');
+% b = load('lidar-frame-2018-01-22-16-20-26-laser-scan.txt.mat');
 
 ref_time = a.data(1,1);
 
@@ -34,7 +37,7 @@ i_interp = interp1(ltime, 1:length(ltime), ptime, 'nearest');
 lti = ltime(i_interp);
 lxi = lx(i_interp, :);
 lyi = ly(i_interp, :);
-
+keyboard
 
 figure; hold all; 
 prev = 0;
@@ -47,8 +50,8 @@ set(gca, 'xdir', 'reverse')
 % na2 = nan(size(lxi(1,in_view)));
 % ph1a = plot([ze1 lxi(1,~in_view) ], lyi(1,~in_view), '.r');
 % ph1b = plot(lxi(1,in_view), lyi(1,in_view), '.b');
-ph1a = rayplot(lxi(1,~in_view), lyi(1,~in_view), '-xr');
-ph1b = rayplot(lxi(1,in_view), lyi(1,in_view), '-xb');
+ph1a = rayplot(lxi(1,~in_view), lyi(1,~in_view), 'xr');
+ph1b = rayplot(lxi(1,in_view), lyi(1,in_view), 'xb');
 
 cam_y = -0.5312;
 my = max(ly(:));
@@ -59,7 +62,7 @@ plot([0 my*tan(0.5) NaN 0 -my*tan(0.5)], ...
 ph2 = []; 
 for i = 1:1:length(lti)
     if ptime(i) ~= prev
-        pause(0.01)
+        pause(0.1)
 %         input('return to continue')
 %         clf; hold all;
         for j = 1:length(ph2)
