@@ -63,7 +63,7 @@ class LiPed(object):
         return None
 
     # Abstract method, to be implemented in subclasses
-    def segment_data(self):
+    def segment_data(self, data, ped_pos):
         pass
 
 
