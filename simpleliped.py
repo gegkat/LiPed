@@ -5,6 +5,7 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Activation
 from sklearn.model_selection import train_test_split
+from imblearn.over_sampling import SMOTE
 import pdb
 
 SEGL = 15 # segmentation size
@@ -14,8 +15,16 @@ PRED_THRESH = 0.9 # threshold for labeling a prediction as pedestrian
 class SimpleLiPed(LiPed):
     def __init__(self, *args, **kwargs):
         super(SimpleLiPed, self).__init__(*args, **kwargs)
-        self.segment_data()
-        # Should probably do more preprocessing here
+        # Split last 20% of data as test set
+        split = int(self.lidar_range.shape[0] * 0.8)
+        self.X_test, self.Y_test = self.segment_data(self.lidar_range[split:], self.ped_pos[split:])
+
+        # Train/validation split with shuffle and oversampling
+        X, Y = self.segment_data(self.lidar_range[:split], self.ped_pos[:split])
+        X_train, self.X_val, Y_train, self.Y_val = train_test_split(X, Y, test_size=0.1, 
+            shuffle=True, random_state=42)
+        sm = SMOTE(ratio='minority', random_state=42)
+        self.X_train, self.Y_train = sm.fit_sample(X_train, Y_train)
 
     def _build_nn(self):
         model = Sequential()
@@ -25,53 +34,26 @@ class SimpleLiPed(LiPed):
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
                       metrics=['accuracy'])
-        # TODO: save and load weights
         return model
 
-    def segment_data(self):
-        # TODO: Set up test data for evaluation
-        X_pos = []
-        X_neg = []
-        for i in range(self.N_frames):
-            data = self.lidar_range[i]
-            persons = self.ped_pos[i]
+    def segment_data(self, data, ped_pos):
+        X = []
+        Y = []
+        for i in range(data.shape[0]):
+            datum = data[i]
+            persons = ped_pos[i]
             angles = np.array([np.arctan(y / x) for x,y in persons])
             for j in range(len(data) // SEGL):
                 idx = j * SEGL
                 for k in range(len(data[idx : idx + SEGL]) // SEG_STRIDE):
-                    curr_x = data[idx + k*SEG_STRIDE : idx + k*SEG_STRIDE + SEGL]
+                    X.append(datum[idx + k*SEG_STRIDE : idx + k*SEG_STRIDE + SEGL])
                     angle = -1.69296944141 + (idx + k * SEG_STRIDE) * 0.00872664619237 # Can we index into self.lidar_angles?
-                    if np.any(np.logical_and(angles >= angle, angles < angle + SEGL*0.00872664619237 )):
-                        X_pos.append(curr_x)
+                    if np.any(np.logical_and(angles >= angle, angles < angle + SEGL*0.00872664619237)):
+                        Y.append(1)
                     else:
-                        X_neg.append(curr_x)
+                        Y.append(0)
 
-        X_pos = np.array(X_pos)
-        X_neg = np.array(X_neg)
-
-        # shuffle data along first dimension
-        np.random.shuffle(X_pos)
-        np.random.shuffle(X_neg)
-
-        # Select number of positive examples to keep 
-        L = X_pos.shape[0]
-        # print("{} positive examples found".format(L))
-
-        # Keep only the first L data points from pos/neg examples so
-        # we have an equal proportion of pos/neg samples
-        X_pos = X_pos[:L, :]
-        X_neg = X_neg[:L, :]
-
-        # Stack data
-        X = np.vstack((X_pos, X_neg))
-
-        # Construct labels
-        Y = np.ones(2*L)
-        Y[L:] = 0
-
-        # Train/test split with shuffle
-        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(X, Y, test_size=0.2, 
-            shuffle=True, random_state=42)
+        return np.array(X), np.array(Y)
 
     def predict(self, frame):
         data = self.lidar_range[frame,:]
