@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from keras.models import load_model
+from sklearn.model_selection import train_test_split
 import os
 import matplotlib.animation as animation
 import time
@@ -14,6 +15,7 @@ import utils
 import os
 import pickle
 import json
+import shutil
 
 # fixed axis limits for animation
 XLIMS = (-10, 10) 
@@ -21,6 +23,10 @@ YLIMS = (-2, 12)
 
 class LiPed(object):
     def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
+
+        self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
+        self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
+
         if init:
             lidar_time, lidar_range = load_laser_data(laser_file)
             ped_time, ped_pos = load_pedestrian_data(pedestrian_file)
@@ -30,33 +36,57 @@ class LiPed(object):
                 kind='nearest', fill_value='extrapolate')
             idx = interp_func(ped_time).astype(int)
 
+            ped_onehot = ped_to_onehot(ped_pos, self.lidar_angle)
+
             # Keep only lidar scans that match pedestrian detections
             lidar_time = lidar_time[idx]
             lidar_range = lidar_range[idx,:]
+
+            # Clear data dir
+            if os.path.exists(data_dir) and os.path.isdir(data_dir):
+                print("Deleting dir: {}".format(data_dir))
+                shutil.rmtree(data_dir)
+
+            print("Creating dir: {}".format(data_dir))
+            os.mkdir(data_dir)
+
             np.save(data_dir + '/lidar_time', lidar_time)
             np.save(data_dir + '/lidar_range', lidar_range)
             np.save(data_dir + '/ped_time', ped_time)
             np.save(data_dir + '/ped_pos', ped_pos)
+            np.save(data_dir + '/ped_onehot', ped_onehot)
         else:
-            print("Loading npy files from {}".format(data_dir))
             lidar_time = np.load(data_dir + '/lidar_time.npy')
             lidar_range = np.load(data_dir + '/lidar_range.npy')
             ped_time = np.load(data_dir + '/ped_time.npy')
             ped_pos = np.load(data_dir + '/ped_pos.npy')
-
-        self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
-        self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
+            ped_onehot = np.load(data_dir + '/ped_onehot.npy')
 
         self.lidar_time = lidar_time
         self.lidar_range = lidar_range
         self.ped_time = ped_time
         self.ped_pos = ped_pos
+        self.ped_onehot = ped_onehot
 
         self.N_frames = self.lidar_range.shape[0]
         print("Data contains {} frames".format(self.N_frames))
 
+        self.train_test_val_split()
+
         # Generic neural network
         self.nn = self._build_nn()
+
+    def train_test_val_split(self):
+
+        # Restrict to data in_view
+        X = self.lidar_range[:, self.in_view]
+        Y = self.ped_onehot[:, self.in_view]
+
+        # Train/test split
+        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(
+            X, Y, test_size=0.2, 
+            shuffle=True, random_state=42)
+
 
     # Abstract method, to be implemented in subclasses
     def _build_nn(self):
@@ -97,9 +127,9 @@ class LiPed(object):
         with open(os.path.join(udir, 'train_history_dict.pickle'), 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
 
-        with open(os.path.join(udir, 'config.log'), 'w') as f:
-            f.write(json.dumps(vars(args)))
-            self.nn.summary(print_fn=lambda x: f.write(x + '\n'))
+        # with open(os.path.join(udir, 'config.log'), 'w') as f:
+        #     f.write(json.dumps(vars(args)))
+        #     self.nn.summary(print_fn=lambda x: f.write(x + '\n'))
 
         with open(os.path.join(udir, 'model.json'), 'w') as f:
             f.write(json.dumps(self.nn.to_json()))
@@ -170,6 +200,8 @@ class LiPed(object):
         self.ped_truth_plot.set_data(ped_y, ped_x)
 
         x, y = self.predict(frame)
+        # x = lx[self.ped_onehot[frame,:]]
+        # y = ly[self.ped_onehot[frame,:]]
 
         self.ped_pred_plot.set_data(y, x)
 
@@ -224,6 +256,19 @@ class LiPed(object):
         anim.save(os.path.join(self.udir,'animation.mp4'), 
                   fps=12, bitrate=-1, dpi=dpi) 
 
+
+def ped_to_onehot(ped_pos, lidar_angle):
+    N_frames = len(ped_pos)
+
+    # Use nearest neighbor interpolation to find angle for pedestrians
+    interp_func = interp1d(lidar_angle, range(len(lidar_angle)), kind='nearest')
+    ped_onehot = np.zeros((N_frames, len(lidar_angle)), dtype=bool)
+    for i in range(N_frames):
+        angles = np.array([np.arctan(y / x) for x,y in ped_pos[i]])
+        idx = interp_func(angles).astype(int)
+        ped_onehot[i, idx] = 1
+
+    return ped_onehot
 
 def pol2cart(r, theta):
     x = np.cos(theta) * r

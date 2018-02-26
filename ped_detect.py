@@ -30,18 +30,23 @@ if __name__ == '__main__':
 
     lptype = LiPedType[args.type].value
     if args.init:
+        print("Processing pickle files...")
         lp = lptype(True, args.init[0], args.init[1], args.data_dir)
     else:
+        print("Loading npy files from {}".format(args.data_dir))
         lp = lptype(data_dir=args.data_dir)
 
     # train neural network
     if args.load_model:
+        print("Loading model from {}".format(args.load_model[0]))
         lp.load_model(args.load_model[0])
     else:
+        print("Traning model for {} epochs".format(args.epochs))
         lp.train(epochs=args.epochs)
 
     if args.do_prediction:
-        frames = range(0, lp.N_frames, 1) # use all frames
+        # frames = range(0, lp.N_frames, 1) # use all frames
         # frames = range(0, 100, 5) # specify a specific range of frames
-        # frames = lp.sample_frames(sections=4, width=30) # process evenly spaced sections of fixed width
+        frames = lp.sample_frames(sections=4, width=30) # process evenly spaced sections of fixed width
+        print("Running prediction animation for {} frames at {} dpi".format(len(frames), args.dpi))
         lp.animate(frames=frames, show_plot=args.show_plot, dpi=args.dpi)
