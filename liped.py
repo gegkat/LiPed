@@ -96,6 +96,9 @@ class LiPed(object):
     def segment_data(self, data, ped_pos):
         pass
 
+    # Abstract method, to be implemented in subclasses
+    def predict(self):
+        pass
 
     def load_model(self, model_file):
         self.nn = load_model(model_file)

@@ -20,15 +20,10 @@ class SimpleLiPed(LiPed):
         super(SimpleLiPed, self).__init__(*args, **kwargs)
 
 
-        print("Segmenting test datadata")
-        self.X_test, self.Y_test = self.segment_data(self.X_test, self.Y_test)
+        # print("Segmenting test data")
+        # self.X_test, self.Y_test = self.segment_data(self.X_test, self.Y_test)
 
-        print("Segmenting training datadata")
-        self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
 
-        print("Over sampling")
-        sm = SMOTE(ratio='minority', random_state=42)
-        self.X_train, self.Y_train = sm.fit_sample(self.X_train, self.Y_train)
 
     def _build_nn(self):
         model = Sequential()
@@ -46,7 +41,7 @@ class SimpleLiPed(LiPed):
         width = data.shape[1]
         segments_per_frame = get_segments_per_frame(width, SEGL, SEG_STRIDE)
 
-        X = np.zeros((N_frames, segments_per_frame,SEGL))
+        X = np.zeros((N_frames, segments_per_frame, SEGL))
         Y = np.zeros((N_frames, segments_per_frame), dtype=int)
         count = 0
         for j in range(segments_per_frame):
@@ -60,47 +55,55 @@ class SimpleLiPed(LiPed):
 
         return X, Y
 
+    def train(self, epochs=5):
+        print("Segmenting training data")
+        self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
+
+        print("Over sampling")
+        sm = SMOTE(ratio='minority', random_state=42)
+        self.X_train, self.Y_train = sm.fit_sample(self.X_train, self.Y_train)
+
+        super(SimpleLiPed, self).train(epochs=epochs)
 
     def predict(self, frame):
+
         data = self.lidar_range[frame,:]
-        X = []
-        angles = []
-        ranges = []
-        for j in range(len(data) // SEGL):
-            idx = j * SEGL
-            for k in range(len(data[idx : idx + SEGL]) // SEG_STRIDE):
-                # Pull out current segment
-                curr_x = data[idx + k*SEG_STRIDE : idx + k*SEG_STRIDE + SEGL]
-                X.append(curr_x)
+        segments_per_frame = get_segments_per_frame(len(data), SEGL, SEG_STRIDE)
 
-                # Figure out where to center pedestrian in this segment
-                # The strategy is to find the minimum reasonable range
-                cx = np.copy(curr_x)
+        X = np.zeros((segments_per_frame, SEGL))
+        angles = np.zeros((segments_per_frame))
+        ranges = np.zeros((segments_per_frame))
 
-                # remove 0 ranges
-                cx[cx < 0.2] = 10000 
+        for j in range(segments_per_frame):
+            idx1 = j * SEG_STRIDE
+            idx2 = idx1 + SEGL
 
-                # remove ranges too far from the median
-                med = np.median(cx[cx < 10000])
-                cx[cx - med < -0.6] = 10001
+            curr_x = data[idx1 : idx2]
+            X[j,:] = curr_x
 
-                ranges.append(cx.min())
-                angles.append(self.lidar_angle[idx + k*SEG_STRIDE + np.argmin(cx)])
+            # Figure out where to center pedestrian in this segment
+            # The strategy is to find the minimum reasonable range
+            cx = np.copy(curr_x)
 
+            # remove 0 ranges
+            cx[cx < 0.2] = 10000 
 
-                # A different strategy is to use the entire segment
-                # ranges.append(curr_x)
-                # angles.append(self.lidar_angle[idx + k*SEG_STRIDE : idx + k*SEG_STRIDE + SEGL])
+            # remove ranges too far from the median
+            med = np.median(cx[cx < 10000])
+            cx[cx - med < -0.6] = 10001
 
-                # Another strategy is to use the center of the segment
-                # angles.append(self.lidar_angle[idx + k*SEG_STRIDE : idx + k*SEG_STRIDE + SEGL].mean())
-                # ranges.append(curr_x[SEGL // 2])
-                
+            ranges[j] = cx.min()
+            angles[j] = self.lidar_angle[idx1 + cx.argmin()]
 
-        angles = np.array(angles)
-        ranges = np.array(ranges)
+            # A different strategy is to use the entire segment
+            # ranges[j] = curr_x
+            # angles[j] = self.lidar_angle[idx1 : idx2]
 
-        X = np.array(X)
+            # Another strategy is to use the center of the segment
+            # angles[j] = self.lidar_angle[idx1 : idx2].mean()
+            # ranges[j] = curr_x[SEGL // 2]
+            
+
         y_pred = self.nn.predict(X)
 
         idx = y_pred[:,0] > PRED_THRESH
