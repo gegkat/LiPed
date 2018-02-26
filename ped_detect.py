@@ -10,7 +10,7 @@ class LiPedType(Enum):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--do_prediction', type=bool, default=True,
+    parser.add_argument('-a', '--do_animation', type=bool, default=False,
         help='Do prediction')
     parser.add_argument('--show_plot', type=bool, default=False,
         help='Show plot, default is to just save movie file without showing plot')
@@ -44,7 +44,9 @@ if __name__ == '__main__':
         print("Traning model for {} epochs".format(args.epochs))
         lp.train(epochs=args.epochs)
 
-    if args.do_prediction:
+    lp.evaluate()
+
+    if args.do_animation:
         # frames = range(0, lp.N_frames, 1) # use all frames
         # frames = range(0, 100, 5) # specify a specific range of frames
         frames = lp.sample_frames(sections=4, width=30) # process evenly spaced sections of fixed width

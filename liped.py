@@ -20,6 +20,7 @@ import shutil
 # fixed axis limits for animation
 XLIMS = (-10, 10) 
 YLIMS = (-2, 12)
+DIST_THRESH = 1 # Threshold for acceptable ped detection distance
 
 class LiPed(object):
     def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
@@ -71,20 +72,21 @@ class LiPed(object):
         self.N_frames = self.lidar_range.shape[0]
         print("Data contains {} frames".format(self.N_frames))
 
-        self.train_test_val_split()
+        self.train_test_split()
 
         # Generic neural network
         self.nn = self._build_nn()
 
-    def train_test_val_split(self):
+    def train_test_split(self):
 
         # Restrict to data in_view
         X = self.lidar_range[:, self.in_view]
         Y = self.ped_onehot[:, self.in_view]
 
         # Train/test split
-        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(
-            X, Y, test_size=0.2, 
+        self.X_train, self.X_test, self.Y_train, self.Y_test, \
+        self.ped_pos_train, self.ped_pos_test = train_test_split(
+            X, Y, self.ped_pos, test_size=0.2, 
             shuffle=True, random_state=42)
 
 
@@ -99,6 +101,61 @@ class LiPed(object):
     # Abstract method, to be implemented in subclasses
     def predict(self):
         pass
+
+    # Abstract method, to be implemented in subclasses
+    def evaluate(self):
+        do_plot = False
+        N_frames = self.X_test.shape[0]
+        print("Evaluating {} frames".format(N_frames))
+        false_pos = 0
+        false_neg = 0
+        true_pos = 0
+        for i in range(N_frames):
+            pred_x, pred_y = self.predict(self.X_test[i,:], self.lidar_angle[self.in_view])
+            truth_x, truth_y = pos2xy(self.ped_pos_test[i])
+
+            fp, fn, tp = get_score(
+                pred_x, pred_y, truth_x, truth_y)
+
+            if do_plot: 
+                lx, ly = pol2cart(self.X_test[i,:], self.lidar_angle[self.in_view])
+                plt.plot(ly, lx, '.', linestyle='', marker='.', 
+                markeredgecolor='gray', markersize=2)
+                plt.plot(pred_y, pred_x, linestyle='', marker='o', 
+                markeredgecolor='r', markersize=5, fillstyle='none',
+                markeredgewidth=0.5)
+                plt.plot(truth_y, truth_x,  linestyle='', marker='s', 
+                markeredgecolor='g', markersize=5, fillstyle='none',
+                markeredgewidth=0.5)
+                plt.title("fp: {}, fn: {}, tp: {}".format(fp, fn, tp))
+                plt.gca().set_xlim(XLIMS)
+                plt.gca().set_ylim(YLIMS)
+                plt.gca().invert_xaxis()
+                plt.show()
+
+            false_pos += fp
+            false_neg += fn
+            true_pos += tp
+   
+        precision = true_pos / float(true_pos + false_pos)
+        recall = true_pos / float(true_pos + false_neg)
+        F1_score = 2 * 1 / (1/recall + 1/precision)
+        print("False pos: {}".format(false_pos))
+        print("False neg: {}".format(false_neg))
+        print("True pos: {}".format(true_pos))
+        print("Precision: {}".format(precision))
+        print("Recall: {}".format(recall))
+        print("F1 Score: {}".format(F1_score))
+
+        with open(os.path.join(self.udir, 'evaluate.csv'), 'w') as f:
+            f.write("N frames, {}\n".format(N_frames))
+            f.write("False pos, {}\n".format(false_pos))
+            f.write("False neg, {}\n".format(false_neg))
+            f.write("True pos, {}\n".format(true_pos))
+            f.write("Precision, {}\n".format(precision))
+            f.write("Recall, {}\n".format(recall))
+            f.write("F1 Score, {}\n".format(F1_score))
+
 
     def load_model(self, model_file):
         self.nn = load_model(model_file)
@@ -194,15 +251,11 @@ class LiPed(object):
         self.lidar_in_view_plot.set_data(ly[self.in_view], lx[self.in_view])
         self.lidar_not_in_view_plot.set_data(ly[~self.in_view], lx[~self.in_view])
 
-        ped_x = []
-        ped_y = []
-        for i in range(len(self.ped_pos[frame])):
-            ped_x.append(self.ped_pos[frame][i][0])
-            ped_y.append(self.ped_pos[frame][i][1])
+        ped_x, ped_y = ped_pos2xy(self.ped_pos[frame])
 
         self.ped_truth_plot.set_data(ped_y, ped_x)
 
-        x, y = self.predict(frame)
+        pred_pos = self.predict(lidar_range[frame,:], self.lidar_angle)
         # x = lx[self.ped_onehot[frame,:]]
         # y = ly[self.ped_onehot[frame,:]]
 
@@ -259,6 +312,46 @@ class LiPed(object):
         anim.save(os.path.join(self.udir,'animation.mp4'), 
                   fps=12, bitrate=-1, dpi=dpi) 
 
+
+def get_score(px, py, tx, ty):
+
+    false_pos = 0
+    false_neg = 0
+    true_pos = len(px)
+
+    L1 = len(px)
+    L2 = len(tx)
+    d = np.zeros((L1,L2))
+    for i in range(L1):
+        d[i,:] = np.sqrt((px[i] - tx)**2 + (py[i] - ty)**2)
+
+    while d.shape[0] and d.shape[1]: 
+        i,j = np.unravel_index(d.argmin(), d.shape)
+        if d[i,j] > DIST_THRESH:
+            break
+
+        d = np.delete(d, (i), axis=0)
+        d = np.delete(d, (j), axis=1)
+
+    false_pos = d.shape[0]
+    false_neg = d.shape[1]
+    true_pos = len(px) - false_pos
+
+    # print(len(px), len(tx), false_pos, false_neg, true_pos)
+
+    # if true_pos > 0:
+        # pdb.set_trace()
+
+    return false_pos, false_neg, true_pos
+
+def pos2xy(pos):
+        x = []
+        y = []
+        for i in range(len(pos)):
+            x.append(pos[i][0])
+            y.append(pos[i][1])
+
+        return np.array(x), np.array(y)
 
 def ped_to_onehot(ped_pos, lidar_angle):
     N_frames = len(ped_pos)

@@ -10,7 +10,7 @@ import pdb
 
 SEGL = 15 # segmentation size
 SEG_STRIDE = 5 # segementation stride
-PRED_THRESH = 0.9 # threshold for labeling a prediction as pedestrian
+PRED_THRESH = 0.95 # threshold for labeling a prediction as pedestrian
 
 def get_segments_per_frame(length, seg_length, stride):
     return (length - seg_length) // stride + 1
@@ -18,12 +18,6 @@ def get_segments_per_frame(length, seg_length, stride):
 class SimpleLiPed(LiPed):
     def __init__(self, *args, **kwargs):
         super(SimpleLiPed, self).__init__(*args, **kwargs)
-
-
-        # print("Segmenting test data")
-        # self.X_test, self.Y_test = self.segment_data(self.X_test, self.Y_test)
-
-
 
     def _build_nn(self):
         model = Sequential()
@@ -55,19 +49,8 @@ class SimpleLiPed(LiPed):
 
         return X, Y
 
-    def train(self, epochs=5):
-        print("Segmenting training data")
-        self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
+    def predict(self, data, angle):
 
-        print("Over sampling")
-        sm = SMOTE(ratio='minority', random_state=42)
-        self.X_train, self.Y_train = sm.fit_sample(self.X_train, self.Y_train)
-
-        super(SimpleLiPed, self).train(epochs=epochs)
-
-    def predict(self, frame):
-
-        data = self.lidar_range[frame,:]
         segments_per_frame = get_segments_per_frame(len(data), SEGL, SEG_STRIDE)
 
         X = np.zeros((segments_per_frame, SEGL))
@@ -93,14 +76,14 @@ class SimpleLiPed(LiPed):
             cx[cx - med < -0.6] = 10001
 
             ranges[j] = cx.min()
-            angles[j] = self.lidar_angle[idx1 + cx.argmin()]
+            angles[j] = angle[idx1 + cx.argmin()]
 
             # A different strategy is to use the entire segment
             # ranges[j] = curr_x
-            # angles[j] = self.lidar_angle[idx1 : idx2]
+            # angles[j] = angle[idx1 : idx2]
 
             # Another strategy is to use the center of the segment
-            # angles[j] = self.lidar_angle[idx1 : idx2].mean()
+            # angles[j] = angle[idx1 : idx2].mean()
             # ranges[j] = curr_x[SEGL // 2]
             
 
