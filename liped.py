@@ -25,6 +25,8 @@ DIST_THRESH = 1 # Threshold for acceptable ped detection distance
 class LiPed(object):
     def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
 
+        self.pred_thresh = 0.95 # threshold for labeling a prediction as pedestrian
+
         self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
         self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
 
@@ -102,6 +104,49 @@ class LiPed(object):
     def predict(self):
         pass
 
+    def precision_recall(self):
+
+        precisions = []
+        recalls = []
+        F1s = []
+        threshes = [0.1, 0.5, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99]
+        # threshes = [0.8, 0.9]
+        for thresh in threshes:
+            self.pred_thresh = thresh
+            precision, recall, F1_score = self.evaluate()
+            precisions.append(precision)
+            recalls.append(recall)
+            F1s.append(F1_score)
+
+        plt.figure()
+        plt.plot(threshes, precisions)
+        plt.plot(threshes, recalls)
+        plt.plot(threshes, F1s)
+        plt.legend(['precision', 'recall', 'F1 Score'])
+        plt.title(self.udir + ' Max F1: {:.3f}'.format(max(F1s)))
+        plt.xlabel('threshold')
+        self.savefig('F1_vs_thresh.png')
+
+        plt.figure()
+        plt.plot(precisions, recalls)
+        plt.xlabel('precision')
+        plt.ylabel('recall')
+        self.savefig('precision_recall.png')
+
+        data_dict = {"threshes": threshes, 
+                     "precisions": precisions,
+                     "recalls": recalls,
+                     "F1s": F1s}
+        self.savedict(data_dict, 'precision_recall.p')
+
+
+    def savedict(self, data_dict, fname):
+        with open(os.path.join(self.udir, fname), 'wb') as f:
+            pickle.dump(data_dict, f)
+
+    def savefig(self, fname):
+        plt.savefig(os.path.join(self.udir, fname), dpi=400)
+
     # Abstract method, to be implemented in subclasses
     def evaluate(self):
         do_plot = False
@@ -147,14 +192,16 @@ class LiPed(object):
         print("Recall: {}".format(recall))
         print("F1 Score: {}".format(F1_score))
 
-        with open(os.path.join(self.udir, 'evaluate.csv'), 'w') as f:
-            f.write("N frames, {}\n".format(N_frames))
-            f.write("False pos, {}\n".format(false_pos))
-            f.write("False neg, {}\n".format(false_neg))
-            f.write("True pos, {}\n".format(true_pos))
-            f.write("Precision, {}\n".format(precision))
-            f.write("Recall, {}\n".format(recall))
-            f.write("F1 Score, {}\n".format(F1_score))
+        # with open(os.path.join(self.udir, 'evaluate.csv'), 'w') as f:
+        #     f.write("N frames, {}\n".format(N_frames))
+        #     f.write("False pos, {}\n".format(false_pos))
+        #     f.write("False neg, {}\n".format(false_neg))
+        #     f.write("True pos, {}\n".format(true_pos))
+        #     f.write("Precision, {}\n".format(precision))
+        #     f.write("Recall, {}\n".format(recall))
+        #     f.write("F1 Score, {}\n".format(F1_score))
+
+        return precision, recall, F1_score
 
 
     def load_model(self, model_file):

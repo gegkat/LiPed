@@ -44,7 +44,8 @@ if __name__ == '__main__':
         print("Traning model for {} epochs".format(args.epochs))
         lp.train(epochs=args.epochs)
 
-    lp.evaluate()
+    # lp.evaluate()
+    lp.precision_recall()
 
     if args.do_animation:
         # frames = range(0, lp.N_frames, 1) # use all frames

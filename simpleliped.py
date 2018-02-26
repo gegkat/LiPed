@@ -8,9 +8,8 @@ from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 import pdb
 
-SEGL = 15 # segmentation size
-SEG_STRIDE = 5 # segementation stride
-PRED_THRESH = 0.95 # threshold for labeling a prediction as pedestrian
+SEGL = 10 # segmentation size
+SEG_STRIDE = 10 # segementation stride
 
 def get_segments_per_frame(length, seg_length, stride):
     return (length - seg_length) // stride + 1
@@ -48,6 +47,16 @@ class SimpleLiPed(LiPed):
         Y = Y.flatten()
 
         return X, Y
+
+    def train(self, epochs=5):
+        print("Segmenting training data")
+        self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
+
+        print("Over sampling")
+        sm = SMOTE(ratio='minority', random_state=42)
+        self.X_train, self.Y_train = sm.fit_sample(self.X_train, self.Y_train)
+
+        super(SimpleLiPed, self).train(epochs=epochs)
 
     def predict(self, data, angle):
 
@@ -89,7 +98,7 @@ class SimpleLiPed(LiPed):
 
         y_pred = self.nn.predict(X)
 
-        idx = y_pred[:,0] > PRED_THRESH
+        idx = y_pred[:,0] > self.pred_thresh
         angles = angles[idx]
         ranges = ranges[idx]
         x = np.cos(angles) * ranges
