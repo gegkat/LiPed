@@ -16,6 +16,7 @@ import os
 import pickle
 import json
 import shutil
+import keras.callbacks
 
 # fixed axis limits for animation
 XLIMS = (-10, 10) 
@@ -185,11 +186,11 @@ class LiPed(object):
         precision = true_pos / float(true_pos + false_pos)
         recall = true_pos / float(true_pos + false_neg)
         F1_score = 2 * 1 / (1/recall + 1/precision)
-        print("False pos: {}".format(false_pos))
-        print("False neg: {}".format(false_neg))
-        print("True pos: {}".format(true_pos))
-        print("Precision: {}".format(precision))
-        print("Recall: {}".format(recall))
+        # print("False pos: {}".format(false_pos))
+        # print("False neg: {}".format(false_neg))
+        # print("True pos: {}".format(true_pos))
+        # print("Precision: {}".format(precision))
+        # print("Recall: {}".format(recall))
         print("F1 Score: {}".format(F1_score))
 
         # with open(os.path.join(self.udir, 'evaluate.csv'), 'w') as f:
@@ -212,9 +213,17 @@ class LiPed(object):
     def train(self, epochs=5):
         start_time = time.time()
 
+        # Get recall/precision/f1 metrics to set as callback function
+        metrics = Metrics()
+
+        self.X_train, self.X_val, self.Y_train, self.Y_val, = train_test_split(
+            self.X_train, self.Y_train, test_size=0.2, 
+            shuffle=True, random_state=42)
+
         history = self.nn.fit(self.X_train, self.Y_train, 
                     batch_size=128, epochs=epochs, verbose=1, 
-                    shuffle=True, validation_split=0.2)
+                    shuffle=True, validation_data=(self.X_val, self.Y_val), 
+                    callbacks=[metrics])
 
         end_time = time.time()
         print('Trained model in {:.2f} seconds'.format(end_time-start_time))
@@ -479,3 +488,25 @@ def load_pedestrian_data(pickle_file):
     ped_time = np.array(ped_time)
 
     return ped_time, ped_pos
+
+class Metrics(keras.callbacks.Callback):
+    def on_epoch_end(self, batch, logs={}):
+        y_pred = np.asarray(self.model.predict(self.validation_data[0])) > 0.5
+        y_true = self.validation_data[1]
+
+        eps = np.finfo(float).eps
+        true_positives = np.sum(y_true * y_pred)
+        # true_negatives = np.sum((1-y_true) * (1-y_pred))
+        predicted_positives = np.sum(y_pred)
+        possible_positives = np.sum(y_true)
+        precision = true_positives / (predicted_positives + eps)
+        recall = true_positives / (possible_positives + eps)
+        f1_score = 2 * (precision * recall) / (precision + recall + eps)
+
+        print("Validation: precision {:.4}, recall {:.4}, F1 {:.4}".format(precision, recall, f1_score))
+        self.precision = precision
+        self.recall = recall
+        self.f1_score = f1_score
+
+        return
+
