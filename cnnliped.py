@@ -12,7 +12,7 @@ from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
 import pdb
 import time
 
-SEGL = 10 # segmentation size
+SEGL = 20 # segmentation size
 SEG_STRIDE = 1 # segementation stride
 
 def get_segments_per_frame(length, seg_length, stride):
@@ -58,7 +58,7 @@ class CNNLiPed(LiPed):
         self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
 
         print("Over sampling")
-        sampler = SMOTE(ratio='majority', random_state=42)
+        sampler = SMOTE(ratio='minority', random_state=42)
 
         # Under sampling option
         # print("Under sampling")
