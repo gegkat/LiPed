@@ -1,31 +1,32 @@
 #!/usr/bin/python
 
-import cPickle as pickle
-import pdb
-from scipy.interpolate import interp1d
+# import pdb
+import os, time 
+import utils
+import pickle, json
+import shutil
+
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
-from keras.models import load_model
-from sklearn.model_selection import train_test_split
-import os
 import matplotlib.animation as animation
-import time
-import utils
-import os
-import pickle
-import json
-import shutil
+
 import keras.callbacks
+
+from scipy.interpolate import interp1d
+from matplotlib.lines import Line2D
+from sklearn.model_selection import train_test_split
+from lputils import *
 
 # fixed axis limits for animation
 XLIMS = (-10, 10) 
 YLIMS = (-2, 12)
-DIST_THRESH = 1 # Threshold for acceptable ped detection distance
 
 class LiPed(object):
-    def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
+    #################################################################
+    ### INITIALIZATION AND UTILITIES
+    #################################################################
 
+    def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
         self.pred_thresh = 0.5 # threshold for labeling a prediction as pedestrian
 
         self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
@@ -34,7 +35,6 @@ class LiPed(object):
         if init:
             lidar_time, lidar_range = load_laser_data(laser_file)
             ped_time, ped_pos = load_pedestrian_data(pedestrian_file)
-            # print(lidar_time.shape, lidar_range.shape, ped_time.shape, len(ped_x), len(ped_y))
 
             interp_func = interp1d(lidar_time, range(len(lidar_time)), 
                 kind='nearest', fill_value='extrapolate')
@@ -44,7 +44,7 @@ class LiPed(object):
 
             # Keep only lidar scans that match pedestrian detections
             lidar_time = lidar_time[idx]
-            lidar_range = lidar_range[idx,:]
+            lidar_range = lidar_range[idx, :]
 
             # Clear data dir
             if os.path.exists(data_dir) and os.path.isdir(data_dir):
@@ -75,15 +75,6 @@ class LiPed(object):
         self.N_frames = self.lidar_range.shape[0]
         print("Data contains {} frames".format(self.N_frames))
 
-        self.train_test_split()
-
-        # Generic neural network
-        self.nn = self._build_nn()
-        print(self.nn.summary())
-
-
-    def train_test_split(self):
-
         # Restrict to data in_view
         X = self.lidar_range[:, self.in_view]
         Y = self.ped_onehot[:, self.in_view]
@@ -94,21 +85,39 @@ class LiPed(object):
             X, Y, self.ped_pos, test_size=0.2, 
             shuffle=True, random_state=42)
 
+        # Generic neural network
+        self.nn = self._build_nn()
+        print(self.nn.summary())
 
-    # Abstract method, to be implemented in subclasses
+    def load_model(self, model_file):
+        self.nn = keras.models.load_model(model_file)
+        self.udir = os.path.dirname(model_file)
+
+    def savedict(self, data_dict, fname):
+        with open(os.path.join(self.udir, fname), 'wb') as f:
+            pickle.dump(data_dict, f)
+
+    def savefig(self, fname):
+        plt.savefig(os.path.join(self.udir, fname), dpi=400)
+
+    #################################################################
+    ### ABSTRACT METHODS
+    #################################################################
+
     def _build_nn(self):
         return None
 
-    # Abstract method, to be implemented in subclasses
     def segment_data(self, data, ped_pos):
         pass
 
-    # Abstract method, to be implemented in subclasses
     def predict(self):
-        pass     
+        pass
+
+    #################################################################
+    ### NEURAL NETWORK METHODS
+    #################################################################
 
     def precision_recall(self):
-
         precisions = []
         recalls = []
         F1s = []
@@ -139,15 +148,6 @@ class LiPed(object):
                      "F1s": F1s}
         self.savedict(data_dict, 'precision_recall.p')
 
-
-    def savedict(self, data_dict, fname):
-        with open(os.path.join(self.udir, fname), 'wb') as f:
-            pickle.dump(data_dict, f)
-
-    def savefig(self, fname):
-        plt.savefig(os.path.join(self.udir, fname), dpi=400)
-
-    # Abstract method, to be implemented in subclasses
     def evaluate(self, thresholds):
         do_plot = False
         N_frames = self.X_test.shape[0]
@@ -228,18 +228,13 @@ class LiPed(object):
 
         return precision, recall, F1_score
 
-
-    def load_model(self, model_file):
-        self.nn = load_model(model_file)
-        self.udir = os.path.dirname(model_file)
-
-    # Abstract method, to be implemented in subclasses
     def train(self, epochs=5):
         start_time = time.time()
 
         # Get recall/precision/f1 metrics to set as callback function
         metrics = Metrics()
 
+        # Train/validation split
         self.X_train, self.X_val, self.Y_train, self.Y_val, = train_test_split(
             self.X_train, self.Y_train, test_size=0.2, 
             shuffle=True, random_state=42)
@@ -289,6 +284,9 @@ class LiPed(object):
         plt.ylabel('Accuracy')
         plt.savefig(os.path.join(udir, 'accuracy_vs_epoch.png'), dpi=400)
 
+    #################################################################
+    ### PLOTTING/ANIMATION METHODS
+    #################################################################
 
     def plot_init(self):
         self.fig = plt.figure()
@@ -324,7 +322,6 @@ class LiPed(object):
         self.ax.invert_xaxis()
 
     def plot(self, frame):
-
         lx, ly = pol2cart(self.lidar_range[frame, :], self.lidar_angle)
 
         self.lidar_in_view_plot.set_data(ly[self.in_view], lx[self.in_view])
@@ -362,7 +359,6 @@ class LiPed(object):
         return artists
 
     def sample_frames(self, sections=10, width=40):
-
         frames = []
         jump = self.lidar_range.shape[0] // sections
         array = np.arange(width)
@@ -371,7 +367,6 @@ class LiPed(object):
         return frames
 
     def animate(self, frames=None, show_plot=False, dpi=500):
-
         # all frames
         if frames is None:
             frames = np.arange(0, self.lidar_range.shape[0], 1)
@@ -394,185 +389,6 @@ class LiPed(object):
         anim.save(os.path.join(self.udir,'animation.mp4'), 
                   fps=12, bitrate=-1, dpi=dpi) 
 
-
-def get_score(pr, pth, tr, tth):
-
-    px, py = pol2cart(pr, pth)
-    tx, ty = pol2cart(tr, tth)
-
-    false_pos = 0
-    false_neg = 0
-    true_pos = len(px)
-
-    L1 = len(px)
-    L2 = len(tx)
-    d = np.zeros((L1,L2))
-    for i in range(L1):
-        d[i,:] = np.sqrt((px[i] - tx)**2 + (py[i] - ty)**2)
-
-    while d.shape[0] and d.shape[1]: 
-        i,j = np.unravel_index(d.argmin(), d.shape)
-        if d[i,j] > DIST_THRESH:
-            break
-
-        d = np.delete(d, (i), axis=0)
-        d = np.delete(d, (j), axis=1)
-
-    false_pos = d.shape[0]
-    false_neg = d.shape[1]
-    true_pos = len(px) - false_pos
-
-    # print(len(px), len(tx), false_pos, false_neg, true_pos)
-
-    # if true_pos > 0:
-        # pdb.set_trace()
-
-    return false_pos, false_neg, true_pos
-
-
-def apply_thresholds(y, thresholds, r, th):
-    '''
-    Takes probability data y and applies thresholds to determine
-    pedestrian or not. Returns r and theta as 2d arrays of lists.
-
-    Inputs: 
-      Y: probability of a pedestrian for each sliding window. Dimensiosn are
-         [N, M] whrere n is the number of frames and m is the number
-         of sliding windows 
-
-    thresholds: a list of L thresholds to apply to y for pedestrian detection
-
-      r:  The range at the center of each sliding window, dimensions [N, M] 
-
-      th: The theta at the center of each sliding window, dimensions [N, M]
-
-    Outputs:
-
-    r_list: 2d array of lists with dimension [N, L]. Each element is a list
-    containing range values of pedestrian detections. 
-
-    th_list: 2d array of lists with dimension [N, L]. Each element is a list
-    containing theta values of pedestrian detections. 
-
-    '''
-
-    N_frames = y.shape[0]
-    N_threshes = len(thresholds)
-
-    y = np.tile(y, (N_threshes, 1, 1))
-    y = np.moveaxis(y, 0, 2)
-    idx = y > thresholds
-
-    r_list = np.empty((N_frames, N_threshes), dtype=object)
-    th_list = np.empty((N_frames, N_threshes), dtype=object)
-    for i in range(N_frames):
-        for j in range(N_threshes):
-            k = idx[i,:, j]
-            r_list[i, j] = r[i,k]
-            th_list[i, j] = th[i,k]
-
-    return r_list, th_list
-
-def pos2cart(pos):
-        x = []
-        y = []
-        for i in range(len(pos)):
-            x.append(pos[i][0])
-            y.append(pos[i][1])
-
-        return np.array(x), np.array(y)
-
-def pos2pol(pos):
-        x, y = pos2cart(pos)
-        r, theta = cart2pol(x, y)
-
-        return r, theta
-
-
-def ped_to_onehot(ped_pos, lidar_angle):
-    N_frames = len(ped_pos)
-
-    # Use nearest neighbor interpolation to find angle for pedestrians
-    interp_func = interp1d(lidar_angle, range(len(lidar_angle)), kind='nearest')
-    ped_onehot = np.zeros((N_frames, len(lidar_angle)), dtype=bool)
-    for i in range(N_frames):
-        angles = np.array([np.arctan(y / x) for x,y in ped_pos[i]])
-        idx = interp_func(angles).astype(int)
-        ped_onehot[i, idx] = 1
-
-    return ped_onehot
-
-def pol2cart(r, theta):
-    x = np.cos(theta) * r
-    y = np.sin(theta) * r
-    return x, y
-
-def cart2pol(x, y):
-    r = np.sqrt(x**2 + y**2)
-    theta = np.arctan2(y, x)
-    return r, theta
-
-def load_laser_data(pickle_file):
-    print('parsing laser data: {}'.format(pickle_file))
-
-    lidar_time = []
-    lidar_range = []
-    
-    count = 0
-    with (open(pickle_file, 'rb')) as openfile:
-        while True:
-            try:
-                object = pickle.load(openfile)
-                count += 1
-                lidar_time.append(object[0]) 
-                lidar_range.append( list(object[1]))
-
-                # if count > 1000:
-                    # break
-            except EOFError:
-                break
-
-    lidar_time = np.array(lidar_time)
-    lidar_range = np.array(lidar_range)
-
-    return lidar_time, lidar_range
-
-
-def load_pedestrian_data(pickle_file):
-    print('parsing pedestrian data: {}'.format(pickle_file))
-
-    ped_time = []
-    ped_pos = []
-
-    prev_time = None
-    
-    count = 0
-    with (open(pickle_file, 'rb')) as openfile:
-        while True:
-            try:
-                object = pickle.load(openfile)
-                count += 1
-
-                cur_time = object[0]
-                if cur_time == prev_time: 
-                    ped_pos[-1].append([object[1], object[2]])
-                else:
-                    ped_time.append(object[0])
-                    if object[1] is not None:
-                        ped_pos.append([[object[1], object[2]]])
-                    else:
-                        ped_pos.append([])
-
-                prev_time = cur_time
-
-                # if count > 1000:
-                    # break
-            except EOFError:
-                break
-
-    ped_time = np.array(ped_time)
-
-    return ped_time, ped_pos
 
 class Metrics(keras.callbacks.Callback):
     def on_epoch_end(self, batch, logs={}):
@@ -598,4 +414,3 @@ class Metrics(keras.callbacks.Callback):
         self.accuracy = accuracy
 
         return
-

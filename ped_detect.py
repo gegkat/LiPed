@@ -1,10 +1,11 @@
 #!/usr/bin/python
 
+import pdb
 import sys, argparse
+
 from enum import Enum
 from simpleliped import SimpleLiPed
 from cnnliped import CNNLiPed
-import pdb
 
 class LiPedType(Enum):
     simple = SimpleLiPed

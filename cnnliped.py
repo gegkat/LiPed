@@ -1,22 +1,19 @@
 #!/usr/bin/python
 
-from liped import LiPed
-from liped import apply_thresholds
+import pdb
+import time
 import numpy as np
+
+from liped import LiPed
+from lputils import apply_thresholds, get_segments_per_frame
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout, Flatten
 from keras.layers.convolutional import Conv1D
-from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
-import pdb
-import time
 
 SEGL = 10 # segmentation size
 SEG_STRIDE = 1 # segementation stride
-
-def get_segments_per_frame(length, seg_length, stride):
-    return (length - seg_length) // stride + 1
 
 class CNNLiPed(LiPed):
     def __init__(self, *args, **kwargs):
