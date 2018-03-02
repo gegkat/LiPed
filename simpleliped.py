@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 from liped import LiPed
+from liped import apply_thresholds
 import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout
@@ -58,54 +59,67 @@ class SimpleLiPed(LiPed):
 
         super(SimpleLiPed, self).train(epochs=epochs)
 
-    def predict(self, data, angle):
+    def predict_prob(self, r, th):
 
-        segments_per_frame = get_segments_per_frame(len(data), SEGL, SEG_STRIDE)
+        N_frames = r.shape[0]
+        width = r.shape[1]
 
-        X = np.zeros((segments_per_frame, SEGL))
-        angles = np.zeros((segments_per_frame))
-        ranges = np.zeros((segments_per_frame))
+        # Segment range data with sliding window
+        idx1 = np.arange(0, width - SEGL + 1, SEG_STRIDE)
+        idx2 = np.arange(SEGL)
+        idx = np.expand_dims(idx1, 1)+ idx2
 
-        for j in range(segments_per_frame):
-            idx1 = j * SEG_STRIDE
-            idx2 = idx1 + SEGL
+        # Initialize
+        segments_per_frame = idx.shape[0]
+        y_pred = np.zeros((N_frames, segments_per_frame))
+        pred_th = np.zeros((N_frames, segments_per_frame))
+        pred_r = np.zeros((N_frames, segments_per_frame))
 
-            curr_x = data[idx1 : idx2]
-            X[j,:] = curr_x
+        for i in range(N_frames):
+            X = r[i, idx]
+            y_pred[i,:] = self.nn.predict(X)[:,0]
 
-            # Figure out where to center pedestrian in this segment
-            # The strategy is to find the minimum reasonable range
-            cx = np.copy(curr_x)
+            # Determine most likely pedestrian location for each segment
+            for j in range(segments_per_frame):
+                idx1 = j * SEG_STRIDE
+                idx2 = idx1 + SEGL
 
-            # remove 0 ranges
-            cx[cx < 0.2] = 10000 
+                # Figure out where to center pedestrian in this segment
+                # The strategy is to find the minimum reasonable range
+                cx = np.copy(X[j,:])
 
-            # remove ranges too far from the median
-            med = np.median(cx[cx < 10000])
-            cx[cx - med < -0.6] = 10001
+                # remove 0 ranges
+                cx[cx < 0.2] = 10000 
 
-            ranges[j] = cx.min()
-            angles[j] = angle[idx1 + cx.argmin()]
+                # remove ranges too far from the median
+                med = np.median(cx[cx < 10000])
+                cx[cx - med < -0.6] = 10001
 
-            # A different strategy is to use the entire segment
-            # ranges[j] = curr_x
-            # angles[j] = angle[idx1 : idx2]
+                pred_r[i, j] = cx.min()
+                pred_th[i, j] = th[idx1 + cx.argmin()]
 
-            # Another strategy is to use the center of the segment
-            # angles[j] = angle[idx1 : idx2].mean()
-            # ranges[j] = curr_x[SEGL // 2]
+                # A different strategy is to use the entire segment
+                # pred_r[j] = cx
+                # pred_th[j] = th[idx1 : idx2]
+
+                # Another strategy is to use the center of the segment
+                # pred_th[j] = th[idx1 : idx2].mean()
+                # pred_r[j] = cx[SEGL // 2]
             
+        return y_pred, pred_r, pred_th
 
-        y_pred = self.nn.predict(X)
+    def predict(self, r, th):
+        '''
+            Intended for a single frame of data 
+        '''
 
-        idx = y_pred[:,0] > self.pred_thresh
-        angles = angles[idx]
-        ranges = ranges[idx]
-        x = np.cos(angles) * ranges
-        y = np.sin(angles) * ranges
+        r = np.expand_dims(r, 0)
+        pred_probability, pred_r, pred_th = self.predict_prob(r, th)
 
-        return x, y
+        pred_r, pred_th = apply_thresholds(pred_probability, 
+            [self.pred_thresh], pred_r, pred_th)
 
+        return pred_r[0, 0], pred_th[0, 0]   
 
 
 

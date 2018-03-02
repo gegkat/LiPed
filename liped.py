@@ -26,7 +26,7 @@ DIST_THRESH = 1 # Threshold for acceptable ped detection distance
 class LiPed(object):
     def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
 
-        self.pred_thresh = 0.95 # threshold for labeling a prediction as pedestrian
+        self.pred_thresh = 0.5 # threshold for labeling a prediction as pedestrian
 
         self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
         self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
@@ -79,6 +79,8 @@ class LiPed(object):
 
         # Generic neural network
         self.nn = self._build_nn()
+        print(self.nn.summary())
+
 
     def train_test_split(self):
 
@@ -103,28 +105,25 @@ class LiPed(object):
 
     # Abstract method, to be implemented in subclasses
     def predict(self):
-        pass
+        pass     
 
     def precision_recall(self):
 
         precisions = []
         recalls = []
         F1s = []
-        threshes = [0.1, 0.5, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99]
-        # threshes = [0.8, 0.9]
-        for thresh in threshes:
-            self.pred_thresh = thresh
-            precision, recall, F1_score = self.evaluate()
-            precisions.append(precision)
-            recalls.append(recall)
-            F1s.append(F1_score)
+        threshes = np.linspace(0, 1, 10)
+        # threshes = [0.5]
+        precisions, recalls, F1s = self.evaluate(threshes)
+        i_max = np.argmax(F1s)
+        self.pred_thresh = threshes[i_max]
 
         plt.figure()
         plt.plot(threshes, precisions)
         plt.plot(threshes, recalls)
         plt.plot(threshes, F1s)
         plt.legend(['precision', 'recall', 'F1 Score'])
-        plt.title(self.udir + ' Max F1: {:.3f}'.format(max(F1s)))
+        plt.title('Max F1: {:.3f}'.format(F1s[i_max]))
         plt.xlabel('threshold')
         self.savefig('F1_vs_thresh.png')
 
@@ -149,43 +148,68 @@ class LiPed(object):
         plt.savefig(os.path.join(self.udir, fname), dpi=400)
 
     # Abstract method, to be implemented in subclasses
-    def evaluate(self):
+    def evaluate(self, thresholds):
         do_plot = False
         N_frames = self.X_test.shape[0]
+        N_threshes = len(thresholds)
         print("Evaluating {} frames".format(N_frames))
-        false_pos = 0
-        false_neg = 0
-        true_pos = 0
+        false_pos = np.zeros((N_threshes))
+        false_neg = np.zeros((N_threshes))
+        true_pos =  np.zeros((N_threshes))
+
+        # Run entire test set through network
+        pred_probability, pred_r, pred_th = self.predict_prob(
+            self.X_test, self.lidar_angle[self.in_view])
+
+        # Apply multiple thresholds and get list of r/theta for detected
+        # pedestrians at each frame and each threshold
+        pred_r, pred_th = apply_thresholds(pred_probability, 
+            thresholds, pred_r, pred_th)
+
+        print('counting scores')
+        t1 = time.time()
         for i in range(N_frames):
-            pred_x, pred_y = self.predict(self.X_test[i,:], self.lidar_angle[self.in_view])
-            truth_x, truth_y = pos2xy(self.ped_pos_test[i])
+            utils.print_progress_bar(i, N_frames, 
+            prefix = 'Progress:', suffix = 'Complete', bar_length = 50)
 
-            fp, fn, tp = get_score(
-                pred_x, pred_y, truth_x, truth_y)
+            truth_r, truth_th = pos2pol(self.ped_pos_test[i])
 
-            if do_plot: 
-                lx, ly = pol2cart(self.X_test[i,:], self.lidar_angle[self.in_view])
-                plt.plot(ly, lx, '.', linestyle='', marker='.', 
-                markeredgecolor='gray', markersize=2)
-                plt.plot(pred_y, pred_x, linestyle='', marker='o', 
-                markeredgecolor='r', markersize=5, fillstyle='none',
-                markeredgewidth=0.5)
-                plt.plot(truth_y, truth_x,  linestyle='', marker='s', 
-                markeredgecolor='g', markersize=5, fillstyle='none',
-                markeredgewidth=0.5)
-                plt.title("fp: {}, fn: {}, tp: {}".format(fp, fn, tp))
-                plt.gca().set_xlim(XLIMS)
-                plt.gca().set_ylim(YLIMS)
-                plt.gca().invert_xaxis()
-                plt.show()
+            for j in range(N_threshes):
 
-            false_pos += fp
-            false_neg += fn
-            true_pos += tp
-   
-        precision = true_pos / float(true_pos + false_pos)
-        recall = true_pos / float(true_pos + false_neg)
-        F1_score = 2 * 1 / (1/recall + 1/precision)
+                fp, fn, tp = get_score(
+                    pred_r[i,j], pred_th[i,j], truth_r, truth_th)
+
+                if do_plot: 
+                    lx, ly = pol2cart(self.X_test[i,:], self.lidar_angle[self.in_view])
+                    plt.plot(ly, lx, '.', linestyle='', marker='.', 
+                    markeredgecolor='gray', markersize=2)
+                    pred_x, pred_y = pol2cart(pred_r, pred_th)
+                    plt.plot(pred_y, pred_x, linestyle='', marker='o', 
+                    markeredgecolor='r', markersize=5, fillstyle='none',
+                    markeredgewidth=0.5)
+                    truth_x, truth_y = pol2cart(truth_r, truth_th)
+                    plt.plot(truth_y, truth_x,  linestyle='', marker='s', 
+                    markeredgecolor='g', markersize=5, fillstyle='none',
+                    markeredgewidth=0.5)
+                    plt.title("fp: {}, fn: {}, tp: {}".format(fp, fn, tp))
+                    plt.gca().set_xlim(XLIMS)
+                    plt.gca().set_ylim(YLIMS)
+                    plt.gca().invert_xaxis()
+                    plt.show()
+
+                false_pos[j] += fp
+                false_neg[j] += fn
+                true_pos[j] += tp
+
+        t2 = time.time()
+        print("\nComplete in {} seconds, {} samples per sec".format(
+            t2 - t1, N_frames/float(t2-t1)))
+
+        eps = np.finfo(float).eps
+        precision = true_pos / (true_pos + false_pos + eps)
+        recall = true_pos / (true_pos + false_neg + eps)
+        F1_score = 2 * (precision * recall) / (precision + recall + eps)
+
         # print("False pos: {}".format(false_pos))
         # print("False neg: {}".format(false_neg))
         # print("True pos: {}".format(true_pos))
@@ -219,7 +243,6 @@ class LiPed(object):
         self.X_train, self.X_val, self.Y_train, self.Y_val, = train_test_split(
             self.X_train, self.Y_train, test_size=0.2, 
             shuffle=True, random_state=42)
-
         history = self.nn.fit(self.X_train, self.Y_train, 
                     batch_size=128, epochs=epochs, verbose=1, 
                     shuffle=True, validation_data=(self.X_val, self.Y_val), 
@@ -307,11 +330,14 @@ class LiPed(object):
         self.lidar_in_view_plot.set_data(ly[self.in_view], lx[self.in_view])
         self.lidar_not_in_view_plot.set_data(ly[~self.in_view], lx[~self.in_view])
 
-        ped_x, ped_y = ped_pos2xy(self.ped_pos[frame])
+        ped_x, ped_y = pos2cart(self.ped_pos[frame])
 
         self.ped_truth_plot.set_data(ped_y, ped_x)
 
-        pred_pos = self.predict(lidar_range[frame,:], self.lidar_angle)
+        r, th = self.predict(self.lidar_range[frame,:], self.lidar_angle)
+        x, y = pol2cart(r, th)
+
+        # Use this for perfect predictions or test ped_onehot
         # x = lx[self.ped_onehot[frame,:]]
         # y = ly[self.ped_onehot[frame,:]]
 
@@ -369,7 +395,10 @@ class LiPed(object):
                   fps=12, bitrate=-1, dpi=dpi) 
 
 
-def get_score(px, py, tx, ty):
+def get_score(pr, pth, tr, tth):
+
+    px, py = pol2cart(pr, pth)
+    tx, ty = pol2cart(tr, tth)
 
     false_pos = 0
     false_neg = 0
@@ -400,7 +429,51 @@ def get_score(px, py, tx, ty):
 
     return false_pos, false_neg, true_pos
 
-def pos2xy(pos):
+
+def apply_thresholds(y, thresholds, r, th):
+    '''
+    Takes probability data y and applies thresholds to determine
+    pedestrian or not. Returns r and theta as 2d arrays of lists.
+
+    Inputs: 
+      Y: probability of a pedestrian for each sliding window. Dimensiosn are
+         [N, M] whrere n is the number of frames and m is the number
+         of sliding windows 
+
+    thresholds: a list of L thresholds to apply to y for pedestrian detection
+
+      r:  The range at the center of each sliding window, dimensions [N, M] 
+
+      th: The theta at the center of each sliding window, dimensions [N, M]
+
+    Outputs:
+
+    r_list: 2d array of lists with dimension [N, L]. Each element is a list
+    containing range values of pedestrian detections. 
+
+    th_list: 2d array of lists with dimension [N, L]. Each element is a list
+    containing theta values of pedestrian detections. 
+
+    '''
+
+    N_frames = y.shape[0]
+    N_threshes = len(thresholds)
+
+    y = np.tile(y, (N_threshes, 1, 1))
+    y = np.moveaxis(y, 0, 2)
+    idx = y > thresholds
+
+    r_list = np.empty((N_frames, N_threshes), dtype=object)
+    th_list = np.empty((N_frames, N_threshes), dtype=object)
+    for i in range(N_frames):
+        for j in range(N_threshes):
+            k = idx[i,:, j]
+            r_list[i, j] = r[i,k]
+            th_list[i, j] = th[i,k]
+
+    return r_list, th_list
+
+def pos2cart(pos):
         x = []
         y = []
         for i in range(len(pos)):
@@ -408,6 +481,13 @@ def pos2xy(pos):
             y.append(pos[i][1])
 
         return np.array(x), np.array(y)
+
+def pos2pol(pos):
+        x, y = pos2cart(pos)
+        r, theta = cart2pol(x, y)
+
+        return r, theta
+
 
 def ped_to_onehot(ped_pos, lidar_angle):
     N_frames = len(ped_pos)
@@ -426,6 +506,11 @@ def pol2cart(r, theta):
     x = np.cos(theta) * r
     y = np.sin(theta) * r
     return x, y
+
+def cart2pol(x, y):
+    r = np.sqrt(x**2 + y**2)
+    theta = np.arctan2(y, x)
+    return r, theta
 
 def load_laser_data(pickle_file):
     print('parsing laser data: {}'.format(pickle_file))
@@ -496,17 +581,21 @@ class Metrics(keras.callbacks.Callback):
 
         eps = np.finfo(float).eps
         true_positives = np.sum(y_true * y_pred)
-        # true_negatives = np.sum((1-y_true) * (1-y_pred))
+        true_negatives = np.sum((1-y_true) * (1-y_pred))
         predicted_positives = np.sum(y_pred)
+        predicted_negatives = np.sum(1-y_pred)
         possible_positives = np.sum(y_true)
+        possible_negatives = np.sum(1-y_true)
         precision = true_positives / (predicted_positives + eps)
         recall = true_positives / (possible_positives + eps)
         f1_score = 2 * (precision * recall) / (precision + recall + eps)
-
-        print("Validation: precision {:.4}, recall {:.4}, F1 {:.4}".format(precision, recall, f1_score))
+        accuracy = (true_positives + true_negatives) / float(possible_positives + possible_negatives)
+        print("Validation: precision {:.4}, recall {:.4}, F1 {:.4}, acc: {:.4}".format(
+            precision, recall, f1_score, accuracy))
         self.precision = precision
         self.recall = recall
         self.f1_score = f1_score
+        self.accuracy = accuracy
 
         return
 

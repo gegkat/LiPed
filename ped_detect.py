@@ -3,22 +3,24 @@
 import sys, argparse
 from enum import Enum
 from simpleliped import SimpleLiPed
+from cnnliped import CNNLiPed
 import pdb
 
 class LiPedType(Enum):
     simple = SimpleLiPed
+    cnn = CNNLiPed
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-a', '--do_animation', type=bool, default=False,
+    parser.add_argument('-a', '--do_animation', type=bool, default=True,
         help='Do prediction')
     parser.add_argument('--show_plot', type=bool, default=False,
         help='Show plot, default is to just save movie file without showing plot')
-    parser.add_argument('-t', '--type', default='simple',
+    parser.add_argument('-t', '--type', default='cnn',
         help='LiPed type to train')
     parser.add_argument('-i', '--init', nargs=2,
         help='initial load of raw data, else will load preprocessed data')
-    parser.add_argument('-e', '--epochs', type=int, default=20,
+    parser.add_argument('-e', '--epochs', type=int, default=5,
         help='epochs to train')
     parser.add_argument('-d', '--data_dir', default='data',
         help='initial load of raw data, else will load preprocessed data') 

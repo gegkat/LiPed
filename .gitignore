@@ -1,4 +1,7 @@
 data/
+data_1000/
+data_full
+pickle_data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
