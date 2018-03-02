@@ -12,7 +12,7 @@ from keras.layers.convolutional import Conv1D
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
 
-SEGL = 10 # segmentation size
+SEGL = 20 # segmentation size
 SEG_STRIDE = 1 # segementation stride
 
 class CNNLiPed(LiPed):
@@ -55,7 +55,7 @@ class CNNLiPed(LiPed):
         self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
 
         print("Over sampling")
-        sampler = SMOTE(ratio='majority', random_state=42)
+        sampler = SMOTE(ratio='minority', random_state=42)
 
         # Under sampling option
         # print("Under sampling")

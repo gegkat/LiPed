@@ -121,8 +121,9 @@ class LiPed(object):
         precisions = []
         recalls = []
         F1s = []
-        threshes = np.linspace(0, 1, 10)
-        # threshes = [0.5]
+        # threshes = np.linspace(0, .98, 10)
+        threshes = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99, 0.999]
+        # threshes = [0.5] #[0.98]
         precisions, recalls, F1s = self.evaluate(threshes)
         i_max = np.argmax(F1s)
         self.pred_thresh = threshes[i_max]
@@ -132,7 +133,7 @@ class LiPed(object):
         plt.plot(threshes, recalls)
         plt.plot(threshes, F1s)
         plt.legend(['precision', 'recall', 'F1 Score'])
-        plt.title('Max F1: {:.3f}'.format(F1s[i_max]))
+        plt.title('Max F1: {:.3f} at {}'.format(F1s[i_max], threshes[i_max]))
         plt.xlabel('threshold')
         self.savefig('F1_vs_thresh.png')
 
@@ -183,7 +184,7 @@ class LiPed(object):
                     lx, ly = pol2cart(self.X_test[i,:], self.lidar_angle[self.in_view])
                     plt.plot(ly, lx, '.', linestyle='', marker='.', 
                     markeredgecolor='gray', markersize=2)
-                    pred_x, pred_y = pol2cart(pred_r, pred_th)
+                    pred_x, pred_y = pol2cart(pred_r[i,j], pred_th[i,j])
                     plt.plot(pred_y, pred_x, linestyle='', marker='o', 
                     markeredgecolor='r', markersize=5, fillstyle='none',
                     markeredgewidth=0.5)
