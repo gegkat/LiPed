@@ -117,6 +117,14 @@ class LiPed(object):
     ### NEURAL NETWORK METHODS
     #################################################################
 
+    def average_precision(self, precisions):
+        # using Eq. 1 and 2 (Sec. 4.2) in
+        # http://homepages.inf.ed.ac.uk/ckiw/postscript/ijcv_voc09.pdf
+        p = 0
+        for i in range(len(precisions)):
+            p += max(precisions[i:])
+        return p / len(precisions)
+
     def precision_recall(self):
         precisions = []
         recalls = []
@@ -127,6 +135,13 @@ class LiPed(object):
         precisions, recalls, F1s = self.evaluate(threshes)
         i_max = np.argmax(F1s)
         self.pred_thresh = threshes[i_max]
+
+        # Only single class, so AP and not mAP
+        # AP dependent on thresholds chosen
+        # Standard COCO IoU thresholds for mAP[.5:.95]
+        # np.linspace(.5, 0.95, np.round((0.95 - .5) / .05) + 1, endpoint=True)
+        ap = self.average_precision(precisions)
+        print('Average precision: {:.3f}'.format(ap))
 
         plt.figure()
         plt.plot(threshes, precisions)
