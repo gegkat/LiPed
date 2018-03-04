@@ -26,7 +26,7 @@ TH_SCALE = 0.00872664619237 * WINDOW
 
 class CNNLiPed(LiPed):
     def __init__(self, *args, **kwargs):
-        self.locmodel = load_model('_2018-03-03_23-17-05/model.h5')
+        self.locmodel = load_model('locnet_2018-03-03_23-17-05/model.h5')
         super(CNNLiPed, self).__init__(*args, **kwargs)
 
     def _build_nn(self):

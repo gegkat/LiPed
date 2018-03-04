@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-# import pdb
+import pdb
 import os, time 
 import utils
 import pickle, json
@@ -245,10 +245,6 @@ class LiPed(object):
         #     f.write("F1 Score, {}\n".format(F1_score))
 
         return precision, recall, F1_score
-
-    def load_model(self, model_file):
-        self.nn = load_model(model_file)
-        self.udir = os.path.dirname(model_file)
 
     # Abstract method, to be implemented in subclasses
     def train(self, regression=False, epochs=5):
