@@ -1,12 +1,14 @@
 #!/usr/bin/python
 
-from liped import LiPed
-from liped import apply_thresholds
+import pdb
+import time
 import numpy as np
+
+from liped import LiPed
+from lputils import apply_thresholds, get_segments_per_frame
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout, Flatten
 from keras.layers.convolutional import Conv1D
-from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
 from keras.models import load_model
@@ -21,9 +23,6 @@ R_BIAS = 0
 R_SCALE = 10
 TH_BIAS = 0.0087266461923 * PADDING
 TH_SCALE = 0.00872664619237 * WINDOW
-
-def get_segments_per_frame(length, seg_length, stride):
-    return (length - seg_length) // stride + 1
 
 class CNNLiPed(LiPed):
     def __init__(self, *args, **kwargs):

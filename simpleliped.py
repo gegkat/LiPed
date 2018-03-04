@@ -1,19 +1,16 @@
 #!/usr/bin/python
 
-from liped import LiPed
-from liped import apply_thresholds
+# import pdb
 import numpy as np
+
+from liped import LiPed
+from lputils import apply_thresholds, get_segments_per_frame
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout
-from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
-import pdb
 
 SEGL = 10 # segmentation size
 SEG_STRIDE = 10 # segementation stride
-
-def get_segments_per_frame(length, seg_length, stride):
-    return (length - seg_length) // stride + 1
 
 class SimpleLiPed(LiPed):
     def __init__(self, *args, **kwargs):
@@ -42,11 +39,10 @@ class SimpleLiPed(LiPed):
             idx1 = j * SEG_STRIDE
             idx2 = idx1 + SEGL
             X[:, j, :] = data[:, idx1:idx2]
-            Y[:,j] = np.any(ped_onehot[:, idx1:idx2], axis=1)
+            Y[:, j] = np.any(ped_onehot[:, idx1:idx2], axis=1)
 
         X = X.reshape((-1, SEGL))
         Y = Y.flatten()
-
         return X, Y
 
     def train(self, epochs=5):
@@ -60,7 +56,6 @@ class SimpleLiPed(LiPed):
         super(SimpleLiPed, self).train(epochs=epochs)
 
     def predict_prob(self, r, th):
-
         N_frames = r.shape[0]
         width = r.shape[1]
 
@@ -112,7 +107,6 @@ class SimpleLiPed(LiPed):
         '''
             Intended for a single frame of data 
         '''
-
         r = np.expand_dims(r, 0)
         pred_probability, pred_r, pred_th = self.predict_prob(r, th)
 
@@ -120,6 +114,4 @@ class SimpleLiPed(LiPed):
             [self.pred_thresh], pred_r, pred_th)
 
         return pred_r[0, 0], pred_th[0, 0]   
-
-
 
