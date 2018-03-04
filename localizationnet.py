@@ -1,7 +1,7 @@
 #!/usr/bin/python
 
 from liped import LiPed
-from liped import apply_thresholds
+from liped import *
 import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout, Flatten
@@ -9,7 +9,6 @@ from keras.layers.convolutional import Conv1D
 from sklearn.model_selection import train_test_split
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
-from keras.models import load_model
 import pdb
 import time
 
@@ -25,63 +24,69 @@ TH_SCALE = 0.00872664619237 * WINDOW
 def get_segments_per_frame(length, seg_length, stride):
     return (length - seg_length) // stride + 1
 
-class CNNLiPed(LiPed):
+class LocNet(LiPed):
     def __init__(self, *args, **kwargs):
-        self.locmodel = load_model('_2018-03-03_23-17-05/model.h5')
-        super(CNNLiPed, self).__init__(*args, **kwargs)
+        super(LocNet, self).__init__(*args, **kwargs)
 
     def _build_nn(self):
         width = self.X_train.shape[1]
         model = Sequential()
-        model.add(Conv1D(50,SEGL, strides=1, activation='relu', 
+        model.add(Conv1D(200,SEGL, strides=1, activation='relu', 
             input_shape=(None, 1)))
-        model.add(Conv1D(50,1, strides=1, activation='relu'))
-        model.add(Conv1D(50,1, strides=1, activation='relu'))
-        model.add(Conv1D(1,1, strides=1, activation='sigmoid'))
-        model.compile(loss='binary_crossentropy',
-                      optimizer='adam',
-                      metrics=['accuracy'])
+        model.add(Conv1D(200,1, strides=1, activation='relu'))
+        model.add(Conv1D(200,1, strides=1, activation='relu'))
+        model.add(Conv1D(200,1, strides=1, activation='relu'))
+        # model.add(Conv1D(500,1, strides=1, activation='relu'))
+        # model.add(Conv1D(2,1, strides=1))
+        model.add(Conv1D(2,1, strides=1))
+        model.compile(loss='mse',
+                      optimizer='adam', 
+                      metrics=['mae'])
         return model
 
-    def segment_data(self, data, ped_onehot):
-        N_frames = data.shape[0]
-        width = data.shape[1]
-        segments_per_frame = get_segments_per_frame(width, SEGL, SEG_STRIDE)
+    def segment_data(self, data, ped_pos):
 
-        X = np.zeros((N_frames, segments_per_frame, SEGL))
-        Y = np.zeros((N_frames, segments_per_frame), dtype=int)
-        count = 0
-        for j in range(segments_per_frame):
-            idx1 = j * SEG_STRIDE
-            idx2 = idx1 + SEGL
-            X[:, j, :] = data[:, idx1:idx2]
-            Y[:,j] = np.any(ped_onehot[:, (idx1+PADDING):(idx1+PADDING + WINDOW) ], 
-                axis=1)
+        N_frames = len(ped_pos)
+        angles = self.lidar_angle[self.in_view]
+        interp_func = interp1d(angles, range(len(angles)), kind='nearest')
+        X = []
+        Y = []
+        start = time.time()
+        for i in range(N_frames):
+            pols = np.array([cart2pol(x, y) for x,y in ped_pos[i]])
 
-        X = X.reshape((-1, SEGL))
-        Y = Y.flatten()
+
+            for j in range(len(pols)):
+                r = pols[j,0]
+                th = pols[j,1]
+                idx = interp_func(th).astype(int)
+                q1 = idx - (SEGL - PADDING) + 1
+
+                for k in range(WINDOW):
+                    q2 = q1 + k
+                    if q2 >= 0:
+                        X.append(data[i, q2:q2+SEGL])
+                        Y.append([r, th - angles[q2]])
+                        # Y.append([th - angles[q2]])
+
+        X = np.array(X)
+        Y = np.array(Y)
+        Y[:,0] = (Y[:,0] - R_BIAS)/R_SCALE
+        Y[:,1] = (Y[:,1] - TH_BIAS)/TH_SCALE
+        # Y[:,0] = (Y[:,0] - TH_BIAS)/TH_SCALE
+        stop = time.time()
+        print(stop - start)
 
         return X, Y
 
     def train(self, epochs=5):
         print("Segmenting training data")
-        self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
-
-        print("Over sampling")
-        sampler = SMOTE(ratio='minority', random_state=42)
-
-        # Under sampling option
-        # print("Under sampling")
-        # sampler = ClusterCentroids(random_state=42)
-        # sampler = RandomUnderSampler(random_state=42)
-        self.X_train, self.Y_train = sampler.fit_sample(self.X_train, self.Y_train)
-
+        self.X_train, self.Y_train = self.segment_data(self.X_train, self.ped_pos_train)
         # Change dimensions for convolutional
         self.X_train = np.expand_dims(self.X_train, 2)
         self.Y_train = np.expand_dims(self.Y_train, 1)
-        self.Y_train = np.expand_dims(self.Y_train, 2)
 
-        super(CNNLiPed, self).train(epochs=epochs)
+        super(LocNet, self).train(epochs=epochs, regression=True)
 
     def predict_prob(self, r, th):
         '''
@@ -115,32 +120,18 @@ class CNNLiPed(LiPed):
         pred_th: The theta at the center of each sliding window, dimensions [n, m]
 
         '''
-
         start = time.time()
-    
+        padding = SEGL//2
+        pred_th = th[padding:-(padding-1)]
+        pred_th = np.tile(pred_th, (r.shape[0], 1))
+        pred_r = r[:,padding:-(padding-1)]
 
         X = np.expand_dims(r, 2)
         Y = self.nn.predict(X)
         Y = Y[:,:,0]
         stop = time.time()
         # print("Processed {} frames in {} seconds. {} frames per sec".format(
-        #     Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
-
-        start = time.time()
-        use_locnet = True
-        if use_locnet:
-            Y2 = self.locmodel.predict(X)
-            pred_r = Y2[:,:,0]*R_SCALE + R_BIAS
-            pred_th = Y2[:,:,1]*TH_SCALE + TH_BIAS
-            pred_th += th[:pred_th.shape[1]]
-        else:
-            padding = SEGL//2
-            pred_th = th[padding:-(padding-1)]
-            pred_th = np.tile(pred_th, (r.shape[0], 1))
-            pred_r = r[:,padding:-(padding-1)]
-        stop = time.time()
-        # print("Processed {} frames in {} seconds. {} frames per sec".format(
-        #     Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
+            # Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
         
         return Y, pred_r, pred_th
 

@@ -24,12 +24,14 @@ YLIMS = (-2, 12)
 DIST_THRESH = 1 # Threshold for acceptable ped detection distance
 
 class LiPed(object):
-    def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data'):
+    def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data', regression=False):
 
         self.pred_thresh = 0.5 # threshold for labeling a prediction as pedestrian
 
         self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
         self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
+        if regression:
+            self.in_view[:] = True
 
         if init:
             lidar_time, lidar_range = load_laser_data(laser_file)
@@ -113,7 +115,7 @@ class LiPed(object):
         recalls = []
         F1s = []
         # threshes = np.linspace(0, .98, 10)
-        threshes = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99, 0.999]
+        threshes = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
         # threshes = [0.5] #[0.98]
         precisions, recalls, F1s = self.evaluate(threshes)
         i_max = np.argmax(F1s)
@@ -235,11 +237,14 @@ class LiPed(object):
         self.udir = os.path.dirname(model_file)
 
     # Abstract method, to be implemented in subclasses
-    def train(self, epochs=5):
+    def train(self, regression=False, epochs=5):
         start_time = time.time()
 
         # Get recall/precision/f1 metrics to set as callback function
-        metrics = Metrics()
+        if regression:
+            callbacks = []
+        else:
+            callbacks = [Metrics()]
 
         self.X_train, self.X_val, self.Y_train, self.Y_val, = train_test_split(
             self.X_train, self.Y_train, test_size=0.2, 
@@ -247,7 +252,7 @@ class LiPed(object):
         history = self.nn.fit(self.X_train, self.Y_train, 
                     batch_size=128, epochs=epochs, verbose=1, 
                     shuffle=True, validation_data=(self.X_val, self.Y_val), 
-                    callbacks=[metrics])
+                    callbacks=callbacks)
 
         end_time = time.time()
         print('Trained model in {:.2f} seconds'.format(end_time-start_time))
@@ -282,13 +287,22 @@ class LiPed(object):
         plt.ylabel('Loss')
         plt.savefig(os.path.join(udir, 'loss_vs_epoch.png'), dpi=400)
 
-        plt.figure()
-        plt.plot(history.history['acc'], label='training')
-        plt.plot(history.history['val_acc'], label='validation')
-        plt.legend()
-        plt.xlabel('# Epochs')
-        plt.ylabel('Accuracy')
-        plt.savefig(os.path.join(udir, 'accuracy_vs_epoch.png'), dpi=400)
+        if regression:
+            plt.figure()
+            plt.plot(history.history['mean_absolute_error'], label='training')
+            plt.plot(history.history['val_mean_absolute_error'], label='validation')
+            plt.legend()
+            plt.xlabel('# Epochs')
+            plt.ylabel('Mean absolute error')
+            plt.savefig(os.path.join(udir, 'error_vs_epoch.png'), dpi=400)
+        else:
+            plt.figure()
+            plt.plot(history.history['acc'], label='training')
+            plt.plot(history.history['val_acc'], label='validation')
+            plt.legend()
+            plt.xlabel('# Epochs')
+            plt.ylabel('Accuracy')
+            plt.savefig(os.path.join(udir, 'accuracy_vs_epoch.png'), dpi=400)
 
 
     def plot_init(self):
@@ -469,10 +483,47 @@ def apply_thresholds(y, thresholds, r, th):
     for i in range(N_frames):
         for j in range(N_threshes):
             k = idx[i,:, j]
-            r_list[i, j] = r[i,k]
-            th_list[i, j] = th[i,k]
+            r_list[i, j], th_list[i, j] = max_suppression(y[i, k, j], r[i,k], th[i, k])
+            # r_list[i, j] = r[i,k]
+            # th_list[i, j] = th[i,k]
 
     return r_list, th_list
+
+def max_suppression(y, r, th):
+    isort = np.argsort(y)
+    r = r[isort]
+    th = th[isort]
+    x, y = pol2cart(r, th)
+
+    xout = []
+    yout = []
+    while len(x) > 0: 
+        xout.append(x[0])
+        yout.append(y[0])
+        x = np.delete(x, 0)
+        y = np.delete(y, 0)
+        if len(x) == 0:
+            break
+        d = ((xout[-1] - x)**2 + (yout[-1] - y)**2)**.5
+        rm_ind = np.where(d < DIST_THRESH)
+        # pdb.set_trace()
+        x = np.delete(x, rm_ind)
+        y = np.delete(y, rm_ind)
+
+    xout = np.array(xout)
+    yout = np.array(yout)
+    if False:
+        plt.figure()
+        plt.plot(xout, yout, linestyle='', marker='o', 
+                        markeredgecolor='r', markersize=5, fillstyle='none',
+                        markeredgewidth=0.5)
+        x, y = pol2cart(r, th)
+        plt.plot(x, y, '.', linestyle='', marker='.', 
+                        markeredgecolor='black', markersize=2)
+        plt.show()
+    rout, thout = cart2pol(xout, yout)
+
+    return rout, thout
 
 def pos2cart(pos):
         x = []
@@ -497,7 +548,7 @@ def ped_to_onehot(ped_pos, lidar_angle):
     interp_func = interp1d(lidar_angle, range(len(lidar_angle)), kind='nearest')
     ped_onehot = np.zeros((N_frames, len(lidar_angle)), dtype=bool)
     for i in range(N_frames):
-        angles = np.array([np.arctan(y / x) for x,y in ped_pos[i]])
+        angles = np.array([np.arctan2(y / x) for x,y in ped_pos[i]])
         idx = interp_func(angles).astype(int)
         ped_onehot[i, idx] = 1
 

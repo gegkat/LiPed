@@ -4,11 +4,13 @@ import sys, argparse
 from enum import Enum
 from simpleliped import SimpleLiPed
 from cnnliped import CNNLiPed
+from localizationnet import LocNet
 import pdb
 
 class LiPedType(Enum):
     simple = SimpleLiPed
     cnn = CNNLiPed
+    locnet = LocNet
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -31,12 +33,16 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     lptype = LiPedType[args.type].value
+    regression = False
+    if args.type == 'locnet':
+        regression = True
+
     if args.init:
         print("Processing pickle files...")
-        lp = lptype(True, args.init[0], args.init[1], args.data_dir)
+        lp = lptype(True, args.init[0], args.init[1], args.data_dir, regression=regression)
     else:
         print("Loading npy files from {}".format(args.data_dir))
-        lp = lptype(data_dir=args.data_dir)
+        lp = lptype(data_dir=args.data_dir, regression=regression)
 
     # train neural network
     if args.load_model:
@@ -47,11 +53,12 @@ if __name__ == '__main__':
         lp.train(epochs=args.epochs)
 
     # lp.evaluate()
-    lp.precision_recall()
+    if not regression:
+        lp.precision_recall()
 
-    if args.do_animation:
-        # frames = range(0, lp.N_frames, 1) # use all frames
-        # frames = range(0, 100, 5) # specify a specific range of frames
-        frames = lp.sample_frames(sections=4, width=30) # process evenly spaced sections of fixed width
-        print("Running prediction animation for {} frames at {} dpi".format(len(frames), args.dpi))
-        lp.animate(frames=frames, show_plot=args.show_plot, dpi=args.dpi)
+        if args.do_animation:
+            # frames = range(0, lp.N_frames, 1) # use all frames
+            # frames = range(0, 100, 5) # specify a specific range of frames
+            frames = lp.sample_frames(sections=12, width=80) # process evenly spaced sections of fixed width
+            print("Running prediction animation for {} frames at {} dpi".format(len(frames), args.dpi))
+            lp.animate(frames=frames, show_plot=args.show_plot, dpi=args.dpi)
