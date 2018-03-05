@@ -148,6 +148,7 @@ class LiPed(object):
         plt.plot(threshes, precisions)
         plt.plot(threshes, recalls)
         plt.plot(threshes, F1s)
+        plt.gca().set_ylim((0,1))
         plt.legend(['precision', 'recall', 'F1 Score'])
         plt.title('Max F1: {:.3f} at {}'.format(F1s[i_max], threshes[i_max]))
         plt.xlabel('threshold')
@@ -157,6 +158,8 @@ class LiPed(object):
         plt.plot(precisions, recalls)
         plt.xlabel('precision')
         plt.ylabel('recall')
+        plt.gca().set_xlim((0,1))
+        plt.gca().set_ylim((0,1))
         self.savefig('precision_recall.png')
 
         data_dict = {"threshes": threshes, 
