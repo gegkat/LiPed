@@ -89,7 +89,6 @@ class LiPed(object):
 
         # Generic neural network
         self.nn = self._build_nn()
-        print(self.nn.summary())
 
     def load_model(self, model_file):
         self.nn = keras.models.load_model(model_file)
@@ -181,8 +180,9 @@ class LiPed(object):
 
         # Apply multiple thresholds and get list of r/theta for detected
         # pedestrians at each frame and each threshold
+        print("Applying thresholds")
         pred_r, pred_th = apply_thresholds(pred_probability, 
-            thresholds, pred_r, pred_th)
+            thresholds, pred_r, pred_th, self.X_test, self.lidar_angle[self.in_view])
 
         print('counting scores')
         t1 = time.time()
@@ -257,6 +257,7 @@ class LiPed(object):
             callbacks = [Metrics()]
 
         # Train/validation split
+        print(self.nn.summary())
         self.X_train, self.X_val, self.Y_train, self.Y_val, = train_test_split(
             self.X_train, self.Y_train, test_size=0.2, 
             shuffle=True, random_state=42)

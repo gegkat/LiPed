@@ -1,11 +1,23 @@
 #!/usr/bin/python
 
+import pdb
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator, FormatStrFormatter
+
 import cPickle as pickle
 import numpy as np
 from scipy.interpolate import interp1d
+from scipy.ndimage.filters import gaussian_filter
 
 # Threshold for acceptable ped detection distance
 DIST_THRESH = 1
+XLIMS = (-10, 10) 
+YLIMS = (-2, 12)
+FILTER_SIGMA = 1
+MIN_SCORE = 0.005
+SCORE_RES = 0.1
 
 def get_segments_per_frame(length, seg_length, stride):
     return (length - seg_length) // stride + 1
@@ -37,21 +49,16 @@ def get_score(pr, pth, tr, tth):
     false_neg = d.shape[1]
     true_pos = len(px) - false_pos
 
-    # print(len(px), len(tx), false_pos, false_neg, true_pos)
-
-    # if true_pos > 0:
-        # pdb.set_trace()
-
     return false_pos, false_neg, true_pos
 
 
-def apply_thresholds(y, thresholds, r, th):
+def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None):
     '''
     Takes probability data y and applies thresholds to determine
     pedestrian or not. Returns r and theta as 2d arrays of lists.
 
     Inputs: 
-      Y: probability of a pedestrian for each sliding window. Dimensiosn are
+      prob: probability of a pedestrian for each sliding window. Dimensiosn are
          [N, M] whrere n is the number of frames and m is the number
          of sliding windows 
 
@@ -71,29 +78,80 @@ def apply_thresholds(y, thresholds, r, th):
 
     '''
 
-    N_frames = y.shape[0]
+    N_frames = prob.shape[0]
     N_threshes = len(thresholds)
 
-    y = np.tile(y, (N_threshes, 1, 1))
-    y = np.moveaxis(y, 0, 2)
-    idx = y > thresholds
+    prob = np.tile(prob, (N_threshes, 1, 1))
+    prob = np.moveaxis(prob, 0, 2)
+    idx = prob > thresholds
+
+    # Make data.
+  
 
     r_list = np.empty((N_frames, N_threshes), dtype=object)
     th_list = np.empty((N_frames, N_threshes), dtype=object)
     for i in range(N_frames):
+
+        xc, yc = pol2cart(r[i,:], th[i,:])
+        Xb = np.arange(xc.min(), xc.max(), SCORE_RES)
+        Yb = np.arange(yc.min(), yc.max(), SCORE_RES)
+        Xm, Ym = np.meshgrid(Xb, Yb)
+
         for j in range(N_threshes):
             k = idx[i,:, j]
-            r_list[i, j], th_list[i, j] = max_suppression(y[i, k, j], r[i,k], th[i, k])
-            # r_list[i, j] = r[i,k]
-            # th_list[i, j] = th[i,k]
+
+            # rc  = r[i,k]
+            # thc = th[i,k]
+
+            # xc, yc = pol2cart(rc, thc)
+
+            score = voting(xc[k], yc[k], Xb, Yb)
+            xout, yout = max_suppression(score.flatten(), Xm.flatten(), Ym.flatten())
+            r_list[i, j], th_list[i, j] = cart2pol(xout, yout)
+
+            if False and raw_r is not None:
+                rawx, rawy = pol2cart(raw_r[i,:], raw_th)
+                fig = plt.figure()
+                score[score < MIN_SCORE] = np.nan
+                plt.pcolormesh(Ym.T, Xm.T, score.T)
+                plt.plot(rawy, rawx, linestyle='', marker='.', markeredgecolor='black', markersize=2)
+                plt.plot(yout, xout, linestyle='', marker='o', 
+                        markeredgecolor='red', markersize=8, fillstyle='none',
+                        markeredgewidth=0.5)
+                # plt.plot(yc, xc,  linestyle='', marker='.', 
+                        # markeredgecolor='yellow', markersize=2)
+                plt.gca().set_xlim(XLIMS)
+                plt.gca().set_ylim(YLIMS)
+                plt.gca().invert_xaxis()
+                plt.show()
+ 
 
     return r_list, th_list
 
-def max_suppression(y, r, th):
-    isort = np.argsort(y)
-    r = r[isort]
-    th = th[isort]
-    x, y = pol2cart(r, th)
+def voting(x, y, Xb, Yb):
+
+    # Make data.
+    ix = np.digitize(x, Xb) - 1
+    iy = np.digitize(y, Yb) - 1
+
+    score = np.zeros((len(Yb), len(Xb)))
+    for i in range(len(ix)):
+        score[iy[i], ix[i]] += 1
+
+    score = gaussian_filter(score, FILTER_SIGMA)
+
+    return score
+
+def max_suppression(score, x, y):
+
+    idx = score > MIN_SCORE
+    score = score[idx]
+    x = x[idx]
+    y = y[idx]
+
+    isort = np.argsort(-score) # descending sort
+    x = x[isort]
+    y = y[isort]
 
     xout = []
     yout = []
@@ -106,24 +164,13 @@ def max_suppression(y, r, th):
             break
         d = ((xout[-1] - x)**2 + (yout[-1] - y)**2)**.5
         rm_ind = np.where(d < DIST_THRESH)
-        # pdb.set_trace()
         x = np.delete(x, rm_ind)
         y = np.delete(y, rm_ind)
 
     xout = np.array(xout)
     yout = np.array(yout)
-    if False:
-        plt.figure()
-        plt.plot(xout, yout, linestyle='', marker='o', 
-                        markeredgecolor='r', markersize=5, fillstyle='none',
-                        markeredgewidth=0.5)
-        x, y = pol2cart(r, th)
-        plt.plot(x, y, '.', linestyle='', marker='.', 
-                        markeredgecolor='black', markersize=2)
-        plt.show()
-    rout, thout = cart2pol(xout, yout)
 
-    return rout, thout
+    return xout, yout
 
 def pos2cart(pos):
         x = []
