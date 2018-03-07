@@ -118,7 +118,7 @@ DPI = 300
 
 # How many animation sections
 # Use None to animate all data
-N_ANIMATION_SECTIONS = 4
+N_ANIMATION_SECTIONS = None
 
 # How many consecutive frames to animate for each animation section
 ANIMATION_SECTION_WIDTH = 300

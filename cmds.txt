@@ -1,0 +1,12 @@
+# (Re)process pickle files
+python ped_detect.py -i pickle_data/lidar-frame-2018-01-22-16-20-26-laser-scan.txt pickle_data/lidar-frame-2018-01-22-16-20-26-detected-persons.txt
+
+# _2018-02-17_14-05-40 first results e-mailed to team. No localization net or NMS
+
+# locnet_2018-03-04_11-40-04/
+# WINDOW 6, PADDING 7, R_BIAS = 0, R_SCALE = 10
+# TH_BIAS = LIDAR_STEP * PADDING, TH_SCALE = LIDAR_STEP * WINDOW
+# LOCNET_TYPE = 'polar' 
+
+# Best polar localization and classificaiton so far
+python ped_detect.py -l 98percent_2018-03-02_04-34-36/model.h5 --loc_model locnet_2018-03-04_11-40-04/model.h5
