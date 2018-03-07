@@ -5,29 +5,25 @@ import time
 import numpy as np
 
 from liped import LiPed
-from lputils import apply_thresholds, get_segments_per_frame
-from keras.models import Sequential
+from lputils import *
+from settings import *
+
+from keras.models import Sequential, load_model
 from keras.layers import Dense, Activation, Dropout, Flatten
 from keras.layers.convolutional import Conv1D
 from imblearn.over_sampling import SMOTE
 from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
-from keras.models import load_model
-import pdb
-import time
 
-WINDOW = 6
-PADDING = 7 # Amount on each side segment that is only for padding
-SEGL = WINDOW + 2*PADDING # total segment length 
-SEG_STRIDE = 1 # segementation stride
-R_BIAS = 0
-R_SCALE = 10
-TH_BIAS = 0.0087266461923 * PADDING
-TH_SCALE = 0.00872664619237 * WINDOW
+
 
 class CNNLiPed(LiPed):
     def __init__(self, *args, **kwargs):
-        # self.locmodel = load_model('locnet_2018-03-03_23-17-05/model.h5')
-        self.locmodel = load_model('locnet_2018-03-04_11-40-04/model.h5')
+        # # self.locmodel = load_model('locnet_2018-03-03_23-17-05/model.h5')
+        # self.locmodel = load_model('locnet_2018-03-04_11-40-04/model.h5')
+        # # self.locmodel = load_model('locnet_xy_2018-03-04_22-44-49/model.h5')
+        # # self.locmodel = load_model('_2018-03-04_23-04-42/model.h5')
+        # # self.locmodel = load_model('_2018-03-04_23-10-54/model.h5')
+        # # self.locmodel = load_model('locnet_xy_2018-03-05_00-19-07/model.h5')
         super(CNNLiPed, self).__init__(*args, **kwargs)
 
     def _build_nn(self):
@@ -42,6 +38,9 @@ class CNNLiPed(LiPed):
                       optimizer='adam',
                       metrics=['accuracy'])
         return model
+
+    def load_localization_model(self, model_file):
+        self.locmodel = load_model(model_file)
 
     def segment_data(self, data, ped_onehot):
         N_frames = data.shape[0]
@@ -127,21 +126,54 @@ class CNNLiPed(LiPed):
         #     Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
 
         start = time.time()
-        use_locnet = True
-        if use_locnet:
+
+        if USE_LOCNET:
             Y2 = self.locmodel.predict(X)
-            pred_r = Y2[:,:,0]*R_SCALE + R_BIAS
-            pred_th = Y2[:,:,1]*TH_SCALE + TH_BIAS
-            pred_th += th[:pred_th.shape[1]]
+
+            # Convert lidar data to x,y
+            xd, yd = pol2cart(r, th)
+
+            if LOCNET_TYPE == 'cartesian':
+                xp = Y2[:,:,0]
+                yp = Y2[:,:,1]
+
+                # Adjust prediction to be absolute
+                # rather than relative to window
+                xp[i,:] += xd[:xp.shape[1]]
+                yp[i,:] += yd[:yp.shape[1]]
+
+                pred_r, pred_th = cart2pol(xp, yp)
+
+            elif LOCNET_TYPE == 'polar':
+                pred_r =  Y2[:,:,0]*R_SCALE + R_BIAS
+                pred_th = Y2[:,:,1]*TH_SCALE + TH_BIAS
+
+                # Adjust prediction to be absolute
+                # rather than relative to window
+                pred_th += th[:pred_th.shape[1]]
+
+                xp, yp = pol2cart(pred_r, pred_th)
+            else:
+                error("Did not recognize locnet type: {}".format(LOCNET_TYPE))
+
+            # Snap to closest lidar point
+            if PRED_SNAP_TO_CLOSEST:
+                for i in range(xp.shape[0]):
+                    xp[i,:], yp[i,:] = snap_to_closest(xp[i,:], yp[i,:], xd[i,:], yd[i,:])
+
+                pred_r, pred_th = cart2pol(xp, yp)
+
         else:
             padding = SEGL//2
             pred_th = th[padding:-(padding-1)]
             pred_th = np.tile(pred_th, (r.shape[0], 1))
             pred_r = r[:,padding:-(padding-1)]
+
         stop = time.time()
         # print("Processed {} frames in {} seconds. {} frames per sec".format(
         #     Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
-        
+
+
         return Y, pred_r, pred_th
 
     def predict(self, r, th):

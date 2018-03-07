@@ -1,23 +1,17 @@
 #!/usr/bin/python
 
 import pdb
+import numpy as np
+
+from settings import *
+
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import cm
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
 import cPickle as pickle
-import numpy as np
 from scipy.interpolate import interp1d
 from scipy.ndimage.filters import gaussian_filter
 
-# Threshold for acceptable ped detection distance
-DIST_THRESH = 1
-XLIMS = (-10, 10) 
-YLIMS = (-2, 12)
-FILTER_SIGMA = 1
-MIN_SCORE = 0.005
-SCORE_RES = 0.1
+
 
 def get_segments_per_frame(length, seg_length, stride):
     return (length - seg_length) // stride + 1
@@ -52,7 +46,7 @@ def get_score(pr, pth, tr, tth):
     return false_pos, false_neg, true_pos
 
 
-def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None):
+def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None, ped_pos=None):
     '''
     Takes probability data y and applies thresholds to determine
     pedestrian or not. Returns r and theta as 2d arrays of lists.
@@ -83,48 +77,64 @@ def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None):
 
     prob = np.tile(prob, (N_threshes, 1, 1))
     prob = np.moveaxis(prob, 0, 2)
-    idx = prob > thresholds
-
-    # Make data.
-  
+    idx = prob > thresholds  
 
     r_list = np.empty((N_frames, N_threshes), dtype=object)
     th_list = np.empty((N_frames, N_threshes), dtype=object)
     for i in range(N_frames):
 
         xc, yc = pol2cart(r[i,:], th[i,:])
-        Xb = np.arange(xc.min(), xc.max(), SCORE_RES)
-        Yb = np.arange(yc.min(), yc.max(), SCORE_RES)
+
+        # Plot looks better if background covers all data
+        if DO_THRESHOLD_PLOT: 
+            Yb = np.arange(XLIMS[0], XLIMS[1], SCORE_RES)
+            Xb = np.arange(YLIMS[0], YLIMS[1], SCORE_RES)
+        else:
+            Xb = np.arange(xc.min()-SCORE_RES, xc.max()+SCORE_RES, SCORE_RES)
+            Yb = np.arange(yc.min()-SCORE_RES, yc.max()+SCORE_RES, SCORE_RES)
         Xm, Ym = np.meshgrid(Xb, Yb)
 
         for j in range(N_threshes):
             k = idx[i,:, j]
 
-            # rc  = r[i,k]
-            # thc = th[i,k]
-
-            # xc, yc = pol2cart(rc, thc)
-
             score = voting(xc[k], yc[k], Xb, Yb)
-            xout, yout = max_suppression(score.flatten(), Xm.flatten(), Ym.flatten())
+            xout, yout = non_max_suppression(score.flatten(), Xm.flatten(), Ym.flatten())
             r_list[i, j], th_list[i, j] = cart2pol(xout, yout)
 
-            if False and raw_r is not None:
+            if DO_THRESHOLD_PLOT and raw_r is not None:
                 rawx, rawy = pol2cart(raw_r[i,:], raw_th)
+
+                truth_pos = np.array(ped_pos[i])
+                truth_x = np.array([])
+                truth_y = np.array([])
+                if truth_pos.ndim == 2:
+                    truth_x = truth_pos[:,0]
+                    truth_y = truth_pos[:,1]
+
+                # Skip negative examples
+                if len(truth_x) + len(xout) < 6:
+                    continue
+
                 fig = plt.figure()
-                score[score < MIN_SCORE] = np.nan
-                plt.pcolormesh(Ym.T, Xm.T, score.T)
-                plt.plot(rawy, rawx, linestyle='', marker='.', markeredgecolor='black', markersize=2)
+                # score[score < MIN_SCORE] = np.nan # blank out background 0's
+                plt.pcolormesh(Ym.T, Xm.T, score.T, cmap='magma')
+                plt.plot(rawy, rawx, linestyle='', marker='.', markeredgecolor='white', markersize=2)
                 plt.plot(yout, xout, linestyle='', marker='o', 
-                        markeredgecolor='red', markersize=8, fillstyle='none',
+                        markeredgecolor='red', markersize=15, fillstyle='none',
                         markeredgewidth=0.5)
+                plt.plot(truth_y, truth_x,  linestyle='', marker='s', 
+                    markeredgecolor='g', markersize=15, fillstyle='none',
+                    markeredgewidth=0.5)
                 # plt.plot(yc, xc,  linestyle='', marker='.', 
                         # markeredgecolor='yellow', markersize=2)
-                plt.gca().set_xlim(XLIMS)
-                plt.gca().set_ylim(YLIMS)
+                plt.gca().set_aspect('equal', adjustable='box')
+                plt.gca().set_xlim((rawy.min(), rawy.max()))
+                plt.gca().set_ylim((rawx.min(), rawx.max()))
                 plt.gca().invert_xaxis()
+                plt.title("Test Frame: {}".format(i))
+
                 plt.show()
- 
+
 
     return r_list, th_list
 
@@ -142,7 +152,7 @@ def voting(x, y, Xb, Yb):
 
     return score
 
-def max_suppression(score, x, y):
+def non_max_suppression(score, x, y):
 
     idx = score > MIN_SCORE
     score = score[idx]
@@ -163,7 +173,7 @@ def max_suppression(score, x, y):
         if len(x) == 0:
             break
         d = ((xout[-1] - x)**2 + (yout[-1] - y)**2)**.5
-        rm_ind = np.where(d < DIST_THRESH)
+        rm_ind = np.where(d < NMS_DIST_THRESH)
         x = np.delete(x, rm_ind)
         y = np.delete(y, rm_ind)
 
@@ -171,6 +181,25 @@ def max_suppression(score, x, y):
     yout = np.array(yout)
 
     return xout, yout
+
+def snap_to_closest(xp, yp, xd, yd):
+    # expand dimensions so we can get an automatic broadcasting to 2 dimensions
+    xd = np.expand_dims(xd, 0)
+    yd = np.expand_dims(yd, 0)
+    xp = np.expand_dims(xp, 1)
+    yp = np.expand_dims(yp, 1)
+
+    # Calculate distance
+    dis = (xp - xd)**2 + (yp - yd)**2
+
+    # Find closest
+    idx = np.argmin(dis, axis=1)
+
+    # Set xp/yp to closest
+    xp = xd[0,idx]
+    yp = yd[0,idx]
+
+    return xp, yp
 
 def pos2cart(pos):
         x = []

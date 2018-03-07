@@ -1,25 +1,20 @@
 #!/usr/bin/python
 
-from liped import LiPed
-from liped import *
+import pdb
+import time
 import numpy as np
+
+from liped import LiPed
+from lputils import *
+from settings import *
+
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Dropout, Flatten
 from keras.layers.convolutional import Conv1D
-from sklearn.model_selection import train_test_split
-from imblearn.over_sampling import SMOTE
-from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
-import pdb
-import time
 
-WINDOW = 6
-PADDING = 7 # Amount on each side segment that is only for padding
-SEGL = WINDOW + 2*PADDING # total segment length 
-SEG_STRIDE = 1 # segementation stride
-R_BIAS = 0
-R_SCALE = 10
-TH_BIAS = 0.0087266461923 * PADDING
-TH_SCALE = 0.00872664619237 * WINDOW
+# from imblearn.over_sampling import SMOTE
+# from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
+
 
 def get_segments_per_frame(length, seg_length, stride):
     return (length - seg_length) // stride + 1
@@ -33,8 +28,11 @@ class LocNet(LiPed):
         model = Sequential()
         model.add(Conv1D(500,SEGL, strides=1, activation='relu', 
             input_shape=(None, 1)))
+        model.add(Dropout(0.2))
         model.add(Conv1D(500,1, strides=1, activation='relu'))
+        model.add(Dropout(0.2))
         model.add(Conv1D(500,1, strides=1, activation='relu'))
+        model.add(Dropout(0.2))
         model.add(Conv1D(500,1, strides=1, activation='relu'))
         # model.add(Conv1D(500,1, strides=1, activation='relu'))
         # model.add(Conv1D(2,1, strides=1))
@@ -53,12 +51,27 @@ class LocNet(LiPed):
         Y = []
         start = time.time()
         for i in range(N_frames):
-            pols = np.array([cart2pol(x, y) for x,y in ped_pos[i]])
+            # pols = np.array([cart2pol(x, y) for x,y in ped_pos[i]])
+            pols = np.array(ped_pos[i])
+
+            if pols.ndim < 2:
+                continue
+
+            xp = pols[:, 0]
+            yp = pols[:, 1]
+
+            xd, yd = pol2cart(data[i,:], angles)
+
+            if TRAIN_SNAP_TO_CLOSEST:
+                xp, yp = snap_to_closest(xp, yp, xd, yd)
 
 
-            for j in range(len(pols)):
-                r = pols[j,0]
-                th = pols[j,1]
+            for j in range(len(xp)):
+                r, th = cart2pol(xp[j], yp[j])
+                # r = pols[j,0]
+                # th = pols[j,1]
+                if th <= angles.min() or th >= angles.max():
+                    pdb.set_trace()
                 idx = interp_func(th).astype(int)
                 q1 = idx - (SEGL - PADDING) + 1
 
@@ -66,13 +79,14 @@ class LocNet(LiPed):
                     q2 = q1 + k
                     if q2 >= 0:
                         X.append(data[i, q2:q2+SEGL])
-                        Y.append([r, th - angles[q2]])
+                        Y.append([xp[j] - xd[q2], yp[j] - yd[q2]])
+                        # Y.append([r, th - angles[q2]])
                         # Y.append([th - angles[q2]])
 
         X = np.array(X)
         Y = np.array(Y)
-        Y[:,0] = (Y[:,0] - R_BIAS)/R_SCALE
-        Y[:,1] = (Y[:,1] - TH_BIAS)/TH_SCALE
+        # Y[:,0] = (Y[:,0] - R_BIAS)/R_SCALE
+        # Y[:,1] = (Y[:,1] - TH_BIAS)/TH_SCALE
         # Y[:,0] = (Y[:,0] - TH_BIAS)/TH_SCALE
         stop = time.time()
         print(stop - start)

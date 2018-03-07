@@ -16,10 +16,8 @@ from scipy.interpolate import interp1d
 from matplotlib.lines import Line2D
 from sklearn.model_selection import train_test_split
 from lputils import *
+from settings import *
 
-# fixed axis limits for animation
-XLIMS = (-10, 10) 
-YLIMS = (-2, 12)
 
 class LiPed(object):
     def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data', regression=False):
@@ -27,10 +25,15 @@ class LiPed(object):
     ### INITIALIZATION AND UTILITIES
     #################################################################
 
-        self.pred_thresh = 0.5 # threshold for labeling a prediction as pedestrian
+        # Threshold for labeling a prediction as pedestrian
+        # Gets overwritten by precision_reacall function to threshold
+        # that gives max F1 score
+        self.pred_thresh = 0.5 
 
-        self.lidar_angle = np.arange(-1.69296944141, 1.6929693222, 0.00872664619237)
-        self.in_view = np.logical_and(self.lidar_angle > -0.5, self.lidar_angle < 0.5)
+
+        self.lidar_angle = np.arange(LIDAR_MIN, LIDAR_MAX, LIDAR_STEP)
+        self.in_view = np.logical_and(self.lidar_angle > YOLO_FOV_MIN, self.lidar_angle < YOLO_FOV_MAX)
+
         if regression:
             self.in_view[:] = True
 
@@ -84,8 +87,8 @@ class LiPed(object):
         # Train/test split
         self.X_train, self.X_test, self.Y_train, self.Y_test, \
         self.ped_pos_train, self.ped_pos_test = train_test_split(
-            X, Y, self.ped_pos, test_size=0.2, 
-            shuffle=True, random_state=42)
+            X, Y, self.ped_pos, test_size=TEST_SIZE, 
+            shuffle=TRAIN_TEST_SHUFFLE, random_state=42)
 
         # Generic neural network
         self.nn = self._build_nn()
@@ -130,12 +133,10 @@ class LiPed(object):
         precisions = []
         recalls = []
         F1s = []
-        # threshes = np.linspace(0, .98, 10)
-        threshes = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
-        # threshes = [0.5] #[0.98]
-        precisions, recalls, F1s = self.evaluate(threshes)
+
+        precisions, recalls, F1s = self.evaluate(THRESHOLDS)
         i_max = np.argmax(F1s)
-        self.pred_thresh = threshes[i_max]
+        self.pred_thresh = THRESHOLDS[i_max]
 
         # Only single class, so AP and not mAP
         # AP dependent on thresholds chosen
@@ -145,12 +146,12 @@ class LiPed(object):
         print('Average precision: {:.3f}'.format(ap))
 
         plt.figure()
-        plt.plot(threshes, precisions)
-        plt.plot(threshes, recalls)
-        plt.plot(threshes, F1s)
+        plt.plot(THRESHOLDS, precisions)
+        plt.plot(THRESHOLDS, recalls)
+        plt.plot(THRESHOLDS, F1s)
         plt.gca().set_ylim((0,1))
         plt.legend(['precision', 'recall', 'F1 Score'])
-        plt.title('Max F1: {:.3f} at {}'.format(F1s[i_max], threshes[i_max]))
+        plt.title('Max F1: {:.3f} at {}'.format(F1s[i_max], THRESHOLDS[i_max]))
         plt.xlabel('threshold')
         self.savefig('F1_vs_thresh.png')
 
@@ -162,14 +163,14 @@ class LiPed(object):
         plt.gca().set_ylim((0,1))
         self.savefig('precision_recall.png')
 
-        data_dict = {"threshes": threshes, 
+        data_dict = {"threshes": THRESHOLDS, 
                      "precisions": precisions,
                      "recalls": recalls,
                      "F1s": F1s}
         self.savedict(data_dict, 'precision_recall.p')
 
     def evaluate(self, thresholds):
-        do_plot = False
+
         N_frames = self.X_test.shape[0]
         N_threshes = len(thresholds)
         print("Evaluating {} frames".format(N_frames))
@@ -185,7 +186,9 @@ class LiPed(object):
         # pedestrians at each frame and each threshold
         print("Applying thresholds")
         pred_r, pred_th = apply_thresholds(pred_probability, 
-            thresholds, pred_r, pred_th, self.X_test, self.lidar_angle[self.in_view])
+            thresholds, pred_r, pred_th, 
+            self.X_test, self.lidar_angle[self.in_view], 
+            self.ped_pos_test)
 
         print('counting scores')
         t1 = time.time()
@@ -200,7 +203,7 @@ class LiPed(object):
                 fp, fn, tp = get_score(
                     pred_r[i,j], pred_th[i,j], truth_r, truth_th)
 
-                if do_plot: 
+                if DO_EVALUATION_PLOT: 
                     lx, ly = pol2cart(self.X_test[i,:], self.lidar_angle[self.in_view])
                     plt.plot(ly, lx, '.', linestyle='', marker='.', 
                     markeredgecolor='gray', markersize=2)
@@ -262,7 +265,7 @@ class LiPed(object):
         # Train/validation split
         print(self.nn.summary())
         self.X_train, self.X_val, self.Y_train, self.Y_val, = train_test_split(
-            self.X_train, self.Y_train, test_size=0.2, 
+            self.X_train, self.Y_train, test_size=CROSS_VAL_SIZE, 
             shuffle=True, random_state=42)
         history = self.nn.fit(self.X_train, self.Y_train, 
                     batch_size=128, epochs=epochs, verbose=1, 
@@ -328,8 +331,8 @@ class LiPed(object):
         lx = self.lidar_range * np.cos(self.lidar_angle)
         ly = self.lidar_range * np.sin(self.lidar_angle)
         self.ax = plt.axes(xlim=(ly.min(), ly.max()), ylim=(lx.min(), lx.max()))
+        self.ax.set_aspect('equal', adjustable='box-forced')
 
-        self.ax.set_aspect('equal', adjustable='box')
         self.ax.set_xlim(XLIMS)
         self.ax.set_ylim(YLIMS)
 

@@ -30,6 +30,8 @@ if __name__ == '__main__':
         help='initial load of raw data, else will load preprocessed data') 
     parser.add_argument('-l', '--load_model', nargs=1, 
         help='load a trained model')
+    parser.add_argument('--loc_model', nargs=1, 
+        help='load a trained localizaiton model')
     parser.add_argument('--dpi', type=int, default=100, 
         help='dpi for animation. Use 100 for speed, 300 for quality')
     args = parser.parse_args()
@@ -46,15 +48,19 @@ if __name__ == '__main__':
         print("Loading npy files from {}".format(args.data_dir))
         lp = lptype(data_dir=args.data_dir, regression=regression)
 
-    # train neural network
+    # Load trianed model
     if args.load_model:
         print("Loading model from {}".format(args.load_model[0]))
         lp.load_model(args.load_model[0])
+
+    # Train network
     else:
         print("Traning model for {} epochs".format(args.epochs))
         lp.train(epochs=args.epochs)
 
-    # lp.evaluate()
+    if args.loc_model:
+        lp.load_localization_model(args.loc_model[0])
+
     if not regression:
         lp.precision_recall()
 
