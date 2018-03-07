@@ -2,6 +2,7 @@
 
 import pdb
 import numpy as np
+import utils
 
 from settings import *
 
@@ -82,6 +83,8 @@ def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None, ped_pos=N
     r_list = np.empty((N_frames, N_threshes), dtype=object)
     th_list = np.empty((N_frames, N_threshes), dtype=object)
     for i in range(N_frames):
+        utils.print_progress_bar(i, N_frames, 
+            prefix = 'Progress:', suffix = 'Complete', bar_length = 50)
 
         xc, yc = pol2cart(r[i,:], th[i,:])
 
@@ -111,14 +114,14 @@ def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None, ped_pos=N
                     truth_x = truth_pos[:,0]
                     truth_y = truth_pos[:,1]
 
-                # Skip negative examples
-                if len(truth_x) + len(xout) < 6:
+                # Skip negative examples if desired
+                if len(truth_x) < 3 or len(xout) < 2:
                     continue
 
                 fig = plt.figure()
-                # score[score < MIN_SCORE] = np.nan # blank out background 0's
-                plt.pcolormesh(Ym.T, Xm.T, score.T, cmap='magma')
-                plt.plot(rawy, rawx, linestyle='', marker='.', markeredgecolor='white', markersize=2)
+                score[score < MIN_SCORE] = np.nan # blank out background 0's
+                plt.pcolormesh(Ym.T, Xm.T, score.T, cmap='Reds') # magma looks nice
+                plt.plot(rawy, rawx, linestyle='', marker='.', markeredgecolor='black', markersize=2)
                 plt.plot(yout, xout, linestyle='', marker='o', 
                         markeredgecolor='red', markersize=15, fillstyle='none',
                         markeredgewidth=0.5)
@@ -148,7 +151,17 @@ def voting(x, y, Xb, Yb):
     for i in range(len(ix)):
         score[iy[i], ix[i]] += 1
 
-    score = gaussian_filter(score, FILTER_SIGMA)
+    # Constant mode pads edges with cval 
+    # Truncate stops filter at this many standard deviations
+    max1 = np.max(score)
+    if max1 == 0:
+        return score
+
+    score = gaussian_filter(score, FILTER_SIGMA, 
+        mode='constant', cval=0.0, truncate=FILTER_TRUNCATE)
+
+    # Scale back up so 1 vote is still 1 vote
+    score = score * max1/score.max()
 
     return score
 

@@ -173,7 +173,9 @@ class LiPed(object):
 
         N_frames = self.X_test.shape[0]
         N_threshes = len(thresholds)
+
         print("Evaluating {} frames".format(N_frames))
+        t1 = time.time()
         false_pos = np.zeros((N_threshes))
         false_neg = np.zeros((N_threshes))
         true_pos =  np.zeros((N_threshes))
@@ -182,15 +184,24 @@ class LiPed(object):
         pred_probability, pred_r, pred_th = self.predict_prob(
             self.X_test, self.lidar_angle[self.in_view])
 
+        t2 = time.time()
+        print("\nComplete in {:.1f} seconds, {:.1f} samples per sec".format(
+            t2 - t1, N_frames/float(t2-t1)))
+
         # Apply multiple thresholds and get list of r/theta for detected
         # pedestrians at each frame and each threshold
         print("Applying thresholds")
+        t1 = time.time()
         pred_r, pred_th = apply_thresholds(pred_probability, 
             thresholds, pred_r, pred_th, 
             self.X_test, self.lidar_angle[self.in_view], 
             self.ped_pos_test)
 
-        print('counting scores')
+        t2 = time.time()
+        print("\nComplete in {:.1f} seconds, {:.1f} samples per sec".format(
+            t2 - t1, N_frames/float(t2-t1)))
+
+        print('Counting scores')
         t1 = time.time()
         for i in range(N_frames):
             utils.print_progress_bar(i, N_frames, 
@@ -226,7 +237,7 @@ class LiPed(object):
                 true_pos[j] += tp
 
         t2 = time.time()
-        print("\nComplete in {} seconds, {} samples per sec".format(
+        print("\nComplete in {:.1f} seconds, {:.1f} samples per sec".format(
             t2 - t1, N_frames/float(t2-t1)))
 
         eps = np.finfo(float).eps
