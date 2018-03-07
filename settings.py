@@ -116,8 +116,12 @@ FPS = 30
 # 300 for quality
 DPI = 300
 
+# If True use hand picked clips for animation
+# if you want to animate all frames set to False 
+USE_SUBSET_FOR_ANIMATION = True
+
 # How many animation sections
-# Use None to animate all data
+# Use None to animate all frames
 N_ANIMATION_SECTIONS = None
 
 # How many consecutive frames to animate for each animation section

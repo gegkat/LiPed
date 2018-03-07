@@ -409,18 +409,41 @@ class LiPed(object):
 
     def sample_frames(self):
 
-        sections = N_ANIMATION_SECTIONS
-        width = ANIMATION_SECTION_WIDTH
+        if USE_SUBSET_FOR_ANIMATION:
+            clips = [ [0,     623], 
+                      [2553,  2898],
+                      [3123,  3575],
+                      [4619,  5088],
+                      [10097, 11005],
+                      [11773, 12781],
+                      [13637, 14421],
+                      [18145, 18881],
+                      [19464, 19760],
+                      [19901 ,20423]]
 
+            allframes = []
+            for clip in clips:
+                allframes += range(clip[0], clip[1])
+
+            sections = N_ANIMATION_SECTIONS
+            width = ANIMATION_SECTION_WIDTH
+
+        else:
+            # Use all frames
+            allframes = range(len(self.lidar_range[0]))
+
+        # If section is None, return allframes
         if sections is None:
-            return np.arange(0, self.lidar_range.shape[0], 1)
+            return allframes
 
         frames = []
-        jump = self.lidar_range.shape[0] // sections
+        jump = len(allframes) // sections
         array = np.arange(width)
+        allframes = np.array(allframes)
         for i in range(sections):
             start_frame = np.random.randint(i*jump, (i+1)*jump - width)
-            frames += np.ndarray.tolist(start_frame + array)
+            frames += np.ndarray.tolist(allframes[start_frame + array])
+
         return frames
 
     def animate(self, show_plot=False):
