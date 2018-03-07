@@ -59,7 +59,7 @@ TRAIN_TEST_SHUFFLE = True
 # Percent of data to reserve for testing
 TEST_SIZE = 0.2 # 0.2
 
-# Percent of training data to reserve for coss-validation
+# Percent of training data to reserve for cross-validation
 CROSS_VAL_SIZE = 0.2
 
 #################################################################

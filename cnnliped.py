@@ -18,12 +18,6 @@ from imblearn.under_sampling import ClusterCentroids, RandomUnderSampler
 
 class CNNLiPed(LiPed):
     def __init__(self, *args, **kwargs):
-        # # self.locmodel = load_model('locnet_2018-03-03_23-17-05/model.h5')
-        # self.locmodel = load_model('locnet_2018-03-04_11-40-04/model.h5')
-        # # self.locmodel = load_model('locnet_xy_2018-03-04_22-44-49/model.h5')
-        # # self.locmodel = load_model('_2018-03-04_23-04-42/model.h5')
-        # # self.locmodel = load_model('_2018-03-04_23-10-54/model.h5')
-        # # self.locmodel = load_model('locnet_xy_2018-03-05_00-19-07/model.h5')
         super(CNNLiPed, self).__init__(*args, **kwargs)
 
     def _build_nn(self):
@@ -82,7 +76,7 @@ class CNNLiPed(LiPed):
 
         super(CNNLiPed, self).train(epochs=epochs)
 
-    def predict_prob(self, r, th):
+    def predict_prob(self, rd, thd):
         '''
         Runs range data r through the network producing probabilities of pedestrian
         presence on a sliding window. Sliding window is performed fully convolutionally. 
@@ -92,11 +86,11 @@ class CNNLiPed(LiPed):
         Note that no thresholding is applied here. 
 
         Inputs: 
-          r:  range data to feed into network. Must have
+          rd:  range data to feed into network. Must have
               dimension [n, m] where n is number of frames 
               and m is width of lidar scan 
 
-          th: angle corresponding to r. Must have dimension
+          thd: angle corresponding to r. Must have dimension
               [m] where m is width of lidar scan
 
           Since the network is fully convolutional, it will perform a dense 
@@ -105,33 +99,30 @@ class CNNLiPed(LiPed):
           any data width can be used and the prediction output will grow accordingly. 
 
         Outputs:
-          Y: probability of a pedestrian for each sliding window. Dimensiosn are
-             [n, m] whrere n is the number of frames and m is the number
-             of sliding windows that fit in the data
+           Y: probability of a pedestrian for each sliding window. Dimensiosn are
+              [n, m] whrere n is the number of frames and m is the number
+              of sliding windows that fit in the data
 
-        pred_r: The range at the center of each sliding window, dimensions [n, m] 
+          rp: The range at the center of each sliding window, dimensions [n, m] 
 
-        pred_th: The theta at the center of each sliding window, dimensions [n, m]
+         thp: The theta at the center of each sliding window, dimensions [n, m]
 
         '''
 
-        start = time.time()
-    
-
-        X = np.expand_dims(r, 2)
+        X = np.expand_dims(rd, 2)
         Y = self.nn.predict(X)
         Y = Y[:,:,0]
-        stop = time.time()
-        # print("Processed {} frames in {} seconds. {} frames per sec".format(
-        #     Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
 
-        start = time.time()
 
         if USE_LOCNET:
             Y2 = self.locmodel.predict(X)
 
+            # In this function the suffix d is for data from lidar
+            # while the suffix p is for prediction
+            # Examples: xd, yd, rd, thd, xp, yp, rp, thp
+
             # Convert lidar data to x,y
-            xd, yd = pol2cart(r, th)
+            xd, yd = pol2cart(rd, thd)
 
             if LOCNET_TYPE == 'cartesian':
                 xp = Y2[:,:,0]
@@ -139,20 +130,20 @@ class CNNLiPed(LiPed):
 
                 # Adjust prediction to be absolute
                 # rather than relative to window
-                xp[i,:] += xd[:xp.shape[1]]
-                yp[i,:] += yd[:yp.shape[1]]
+                xp += xd[:,:xp.shape[1]]
+                yp += yd[:,:yp.shape[1]]
 
-                pred_r, pred_th = cart2pol(xp, yp)
+                rp, thp = cart2pol(xp, yp)
 
             elif LOCNET_TYPE == 'polar':
-                pred_r =  Y2[:,:,0]*R_SCALE + R_BIAS
-                pred_th = Y2[:,:,1]*TH_SCALE + TH_BIAS
+                rp =  Y2[:,:,0]*R_SCALE + R_BIAS
+                thp = Y2[:,:,1]*TH_SCALE + TH_BIAS
 
                 # Adjust prediction to be absolute
                 # rather than relative to window
-                pred_th += th[:pred_th.shape[1]]
+                thp += thd[:thp.shape[1]]
 
-                xp, yp = pol2cart(pred_r, pred_th)
+                xp, yp = pol2cart(rp, thp)
             else:
                 error("Did not recognize locnet type: {}".format(LOCNET_TYPE))
 
@@ -161,20 +152,18 @@ class CNNLiPed(LiPed):
                 for i in range(xp.shape[0]):
                     xp[i,:], yp[i,:] = snap_to_closest(xp[i,:], yp[i,:], xd[i,:], yd[i,:])
 
-                pred_r, pred_th = cart2pol(xp, yp)
+                rp, thp = cart2pol(xp, yp)
 
         else:
+            # If no localization net, return data at center of each segment
+            # which is just the same as the raw data with some padding taken
+            # off at the beginning and the end. 
             padding = SEGL//2
-            pred_th = th[padding:-(padding-1)]
-            pred_th = np.tile(pred_th, (r.shape[0], 1))
-            pred_r = r[:,padding:-(padding-1)]
+            thp = thd[padding:-(padding-1)]
+            thp = np.tile(thp, (rd.shape[0], 1))
+            rp = rd[:,padding:-(padding-1)]
 
-        stop = time.time()
-        # print("Processed {} frames in {} seconds. {} frames per sec".format(
-        #     Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
-
-
-        return Y, pred_r, pred_th
+        return Y, rp, thp
 
     def predict(self, r, th):
         '''
