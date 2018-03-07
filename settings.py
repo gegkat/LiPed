@@ -70,7 +70,7 @@ CROSS_VAL_SIZE = 0.2
 # looepd in precision/recall curve
 # THRESHOLDS = np.linspace(0, .98, 10)
 # THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
-THRESHOLDS = [0.8]
+THRESHOLDS = [0.99]
 
 # For pedestrian detection in max suppresion
 # Less than 0.5 seems to work
@@ -82,7 +82,7 @@ MIN_SCORE = 0.1
 # Resolution for voting grid
 # Smaller than 0.1 starts to be slow, but smaller
 # does have slightly better performance
-SCORE_RES = 0.03 # .1
+SCORE_RES = 0.03 
 
 # Parameter for gaussian filter of voting grid
 FILTER_SIGMA = 0.1/SCORE_RES # 0.1/SCORE_RES
@@ -106,3 +106,20 @@ DO_THRESHOLD_PLOT = False
 # fixed axis limits for animation plots
 XLIMS = (-10, 10) 
 YLIMS = (-2, 12)
+
+# Animation frames per second
+# Real time is about 15
+FPS = 30
+
+# Animation pixel density
+# 100 for speed
+# 300 for quality
+DPI = 300
+
+# How many animation sections
+# Use None to animate all data
+N_ANIMATION_SECTIONS = 4
+
+# How many consecutive frames to animate for each animation section
+ANIMATION_SECTION_WIDTH = 300
+    

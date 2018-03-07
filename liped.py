@@ -407,21 +407,28 @@ class LiPed(object):
             prefix = 'Progress:', suffix = 'Complete', bar_length = 50)
         return artists
 
-    def sample_frames(self, sections=10, width=40):
+    def sample_frames(self):
+
+        sections = N_ANIMATION_SECTIONS
+        width = ANIMATION_SECTION_WIDTH
+
+        if sections is None:
+            return np.arange(0, self.lidar_range.shape[0], 1)
+
         frames = []
         jump = self.lidar_range.shape[0] // sections
         array = np.arange(width)
         for i in range(sections):
-            frames += np.ndarray.tolist(array + i*jump)
+            start_frame = np.random.randint(i*jump, (i+1)*jump - width)
+            frames += np.ndarray.tolist(start_frame + array)
         return frames
 
-    def animate(self, frames=None, show_plot=False, dpi=500):
+    def animate(self, show_plot=False):
         # all frames
-        if frames is None:
-            frames = np.arange(0, self.lidar_range.shape[0], 1)
 
-        self.frames_to_animate = frames
-        print('Animating {} frames'.format(len(frames)))
+
+        self.frames_to_animate = self.sample_frames() 
+        print('Animating {} frames'.format(len(self.frames_to_animate)))
 
         self.plot_init()
 
@@ -436,7 +443,7 @@ class LiPed(object):
             plt.show()
 
         anim.save(os.path.join(self.udir,'animation.mp4'), 
-                  fps=12, bitrate=-1, dpi=dpi) 
+                  fps=FPS, bitrate=-1, dpi=DPI) 
 
 
 class Metrics(keras.callbacks.Callback):

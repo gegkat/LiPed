@@ -32,8 +32,6 @@ if __name__ == '__main__':
         help='load a trained model')
     parser.add_argument('--loc_model', nargs=1, 
         help='load a trained localizaiton model')
-    parser.add_argument('--dpi', type=int, default=100, 
-        help='dpi for animation. Use 100 for speed, 300 for quality')
     args = parser.parse_args()
 
     lptype = LiPedType[args.type].value
@@ -65,8 +63,4 @@ if __name__ == '__main__':
         lp.precision_recall()
 
         if args.do_animation:
-            # frames = range(0, lp.N_frames, 1) # use all frames
-            # frames = range(0, 100, 5) # specify a specific range of frames
-            frames = lp.sample_frames(sections=2, width=40) # process evenly spaced sections of fixed width
-            print("Running prediction animation for {} frames at {} dpi".format(len(frames), args.dpi))
-            lp.animate(frames=frames, show_plot=args.show_plot, dpi=args.dpi)
+            lp.animate(show_plot=args.show_plot)
