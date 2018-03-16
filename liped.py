@@ -20,7 +20,8 @@ from settings import *
 
 
 class LiPed(object):
-    def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data', regression=False):
+    def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data',
+                 regression=False, refine=False):
     #################################################################
     ### INITIALIZATION AND UTILITIES
     #################################################################
@@ -70,6 +71,12 @@ class LiPed(object):
             ped_time = np.load(data_dir + '/ped_time.npy')
             ped_pos = np.load(data_dir + '/ped_pos.npy')
             ped_onehot = np.load(data_dir + '/ped_onehot.npy')
+
+        if refine:
+            # Clamping data
+            np.clip(lidar_range, lidar_range.min(), MAX_R, out=lidar_range)
+            # Filter out partial points
+            filter_partial_points(lidar_range)
 
         self.lidar_time = lidar_time
         self.lidar_range = lidar_range
