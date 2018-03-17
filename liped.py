@@ -33,6 +33,9 @@ class LiPed(object):
 
 
         self.lidar_angle = np.arange(LIDAR_MIN, LIDAR_MAX, LIDAR_STEP)
+
+        #### @TODO: TEMPORARY HACK to change dimension from 389 to 387 ####
+        self.lidar_angle = self.lidar_angle[1:-1]
         self.in_view = np.logical_and(self.lidar_angle > YOLO_FOV_MIN, self.lidar_angle < YOLO_FOV_MAX)
 
         if regression:

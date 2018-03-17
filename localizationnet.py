@@ -34,62 +34,79 @@ class LocNet(LiPed):
         model.add(Conv1D(500,1, strides=1, activation='relu'))
         model.add(Dropout(0.2))
         model.add(Conv1D(500,1, strides=1, activation='relu'))
-        # model.add(Conv1D(500,1, strides=1, activation='relu'))
-        # model.add(Conv1D(2,1, strides=1))
+        model.add(Dropout(0.2))
         model.add(Conv1D(2,1, strides=1))
         model.compile(loss='mse',
                       optimizer='adam', 
                       metrics=['mae'])
         return model
 
-    def segment_data(self, data, ped_pos):
+    def segment_data(self, rd, ped_pos):
+
+
+        # In this function the suffix d is for data from lidar
+        # while the suffix p is for pedestrian from YOLO
+        # Examples: xd, yd, rd, thd, xp, yp, rp, thp
 
         N_frames = len(ped_pos)
-        angles = self.lidar_angle[self.in_view]
-        interp_func = interp1d(angles, range(len(angles)), kind='nearest')
+        thd = self.lidar_angle[self.in_view]
+        interp_func = interp1d(thd, range(len(thd)), kind='nearest')
         X = []
         Y = []
         start = time.time()
-        for i in range(N_frames):
-            # pols = np.array([cart2pol(x, y) for x,y in ped_pos[i]])
-            pols = np.array(ped_pos[i])
 
-            if pols.ndim < 2:
+        # Convert lidar data to cartesian
+        xd, yd = pol2cart(rd, thd)
+
+        for i in range(N_frames):
+            curr_ped_pos = np.array(ped_pos[i])
+
+            # Skip if no pedestrians in this frame
+            if curr_ped_pos.ndim < 2:
                 continue
 
-            xp = pols[:, 0]
-            yp = pols[:, 1]
-
-            xd, yd = pol2cart(data[i,:], angles)
+            # pull out x and y
+            xp = curr_ped_pos[:, 0]
+            yp = curr_ped_pos[:, 1]
 
             if TRAIN_SNAP_TO_CLOSEST:
-                xp, yp = snap_to_closest(xp, yp, xd, yd)
+                xp, yp = snap_to_closest(xp, yp, xd[i,:], yd[i,:])
 
+            # convert pedestrian coordinate to polar
+            rp, thp = cart2pol(xp, yp)
 
-            for j in range(len(xp)):
-                r, th = cart2pol(xp[j], yp[j])
-                # r = pols[j,0]
-                # th = pols[j,1]
-                if th <= angles.min() or th >= angles.max():
-                    pdb.set_trace()
-                idx = interp_func(th).astype(int)
-                q1 = idx - (SEGL - PADDING) + 1
+            # Find closest match for pedestrian angle to lidar angle
+            idx = interp_func(thp).astype(int)
 
+            # Find index of beginning of segment with
+            # idx at the beginning of the WINDOW 
+            q1 = idx - (SEGL - PADDING) + 1
+
+            # Iterate over pedestrian detections
+            for j in range(len(q1)):
+
+                # Iterate over all positions of pedestrian in WINDOW
                 for k in range(WINDOW):
-                    q2 = q1 + k
+                    q2 = q1[j] + k
+
                     if q2 >= 0:
-                        X.append(data[i, q2:q2+SEGL])
-                        Y.append([xp[j] - xd[q2], yp[j] - yd[q2]])
-                        # Y.append([r, th - angles[q2]])
-                        # Y.append([th - angles[q2]])
+                        X.append(rd[i, q2:q2+SEGL])
+                        if LOCNET_TYPE == 'cartesian':
+                            # x/y relative to first point in the segment
+                            Y.append([xp[j] - xd[i,q2], yp[j] - yd[i,q2]])
+                        elif LOCNET_TYPE == 'polar':
+                            # th relative to first point in the segment
+                            Y.append([rp[j], thp[j] - thd[q2]])
 
         X = np.array(X)
         Y = np.array(Y)
-        # Y[:,0] = (Y[:,0] - R_BIAS)/R_SCALE
-        # Y[:,1] = (Y[:,1] - TH_BIAS)/TH_SCALE
-        # Y[:,0] = (Y[:,0] - TH_BIAS)/TH_SCALE
-        stop = time.time()
-        print(stop - start)
+
+        if LOCNET_TYPE == 'polar':
+            Y[:,0] = (Y[:,0] - R_BIAS)/R_SCALE
+            Y[:,1] = (Y[:,1] - TH_BIAS)/TH_SCALE
+
+        end = time.time()
+        print('Segmented data in {:.2f} seconds'.format(end-start))
 
         return X, Y
 
@@ -101,66 +118,7 @@ class LocNet(LiPed):
         self.Y_train = np.expand_dims(self.Y_train, 1)
 
         super(LocNet, self).train(epochs=epochs, regression=True)
-
-    def predict_prob(self, r, th):
-        '''
-        Runs range data r through the network producing probabilities of pedestrian
-        presence on a sliding window. Sliding window is performed fully convolutionally. 
-        Also returns the range and angle at the center of each sliding window which is
-        why theta needs to be input. 
-
-        Note that no thresholding is applied here. 
-
-        Inputs: 
-          r:  range data to feed into network. Must have
-              dimension [n, m] where n is number of frames 
-              and m is width of lidar scan 
-
-          th: angle corresponding to r. Must have dimension
-              [m] where m is width of lidar scan
-
-          Since the network is fully convolutional, it will perform a dense 
-          sliding window across any lidar scan width m. The window size is 
-          given by SEGL and must be adhered to only in training. In prediciton
-          any data width can be used and the prediction output will grow accordingly. 
-
-        Outputs:
-          Y: probability of a pedestrian for each sliding window. Dimensiosn are
-             [n, m] whrere n is the number of frames and m is the number
-             of sliding windows that fit in the data
-
-        pred_r: The range at the center of each sliding window, dimensions [n, m] 
-
-        pred_th: The theta at the center of each sliding window, dimensions [n, m]
-
-        '''
-        start = time.time()
-        padding = SEGL//2
-        pred_th = th[padding:-(padding-1)]
-        pred_th = np.tile(pred_th, (r.shape[0], 1))
-        pred_r = r[:,padding:-(padding-1)]
-
-        X = np.expand_dims(r, 2)
-        Y = self.nn.predict(X)
-        Y = Y[:,:,0]
-        stop = time.time()
-        # print("Processed {} frames in {} seconds. {} frames per sec".format(
-            # Y.shape[0], stop - start, (Y.shape[0])/float(stop-start)))
-        
-        return Y, pred_r, pred_th
-
-    def predict(self, r, th):
-        '''
-            Intended for a single frame of data 
-        '''
-
-        r = np.expand_dims(r, 0)
-        pred_probability, pred_r, pred_th = self.predict_prob(r, th)
-
-        pred_r, pred_th = apply_thresholds(pred_probability, 
-            [self.pred_thresh], pred_r, pred_th)
-
-        return pred_r[0, 0], pred_th[0, 0]       
+     
 
 
 

@@ -227,7 +227,10 @@ def ped_to_onehot(ped_pos, lidar_angle):
     interp_func = interp1d(lidar_angle, range(len(lidar_angle)), kind='nearest')
     ped_onehot = np.zeros((N_frames, len(lidar_angle)), dtype=bool)
     for i in range(N_frames):
-        angles = np.array([np.arctan2(y / x) for x,y in ped_pos[i]])
+        try:
+            angles = np.array([np.arctan2(y, x) for x,y in ped_pos[i]])
+        except:
+            pdb.set_trace()
         idx = interp_func(angles).astype(int)
         ped_onehot[i, idx] = 1
 
@@ -274,7 +277,7 @@ def load_laser_data(pickle_file):
                 lidar_range.append( list(object[1]))
 
                 # if count > 1000:
-                    # break
+                #     break
             except EOFError:
                 break
 
@@ -312,7 +315,7 @@ def load_pedestrian_data(pickle_file):
                 prev_time = cur_time
 
                 # if count > 1000:
-                    # break
+                #     break
             except EOFError:
                 break
 
