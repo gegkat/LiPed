@@ -214,20 +214,11 @@ def snap_to_closest(xp, yp, xd, yd):
 
     return xp, yp
 
-def pos2cart(pos):
-        x = []
-        y = []
-        for i in range(len(pos)):
-            x.append(pos[i][0])
-            y.append(pos[i][1])
-
-        return np.array(x), np.array(y)
-
-def pos2pol(pos):
-        x, y = pos2cart(pos)
-        r, theta = cart2pol(x, y)
-
-        return r, theta
+def filter_partial_points(lidar_range):
+    d = lidar_range[:, 1:] - lidar_range[:, :-1]
+    thresh = MAX_R * LIDAR_STEP
+    f = np.logical_and(d[:, :-1] > thresh, d[:, 1:] > thresh)
+    lidar_range[:, 1:-1][f] = 0
 
 def ped_to_onehot(ped_pos, lidar_angle):
     N_frames = len(ped_pos)
@@ -244,6 +235,21 @@ def ped_to_onehot(ped_pos, lidar_angle):
         ped_onehot[i, idx] = 1
 
     return ped_onehot
+
+def pos2cart(pos):
+    x = []
+    y = []
+    for i in range(len(pos)):
+        x.append(pos[i][0])
+        y.append(pos[i][1])
+
+    return np.array(x), np.array(y)
+
+def pos2pol(pos):
+    x, y = pos2cart(pos)
+    r, theta = cart2pol(x, y)
+
+    return r, theta
 
 def pol2cart(r, theta):
     x = np.cos(theta) * r
@@ -270,8 +276,8 @@ def load_laser_data(pickle_file):
                 lidar_time.append(object[0]) 
                 lidar_range.append( list(object[1]))
 
-                if count > 1000:
-                    break
+                # if count > 1000:
+                #     break
             except EOFError:
                 break
 
@@ -308,8 +314,8 @@ def load_pedestrian_data(pickle_file):
 
                 prev_time = cur_time
 
-                if count > 1000:
-                    break
+                # if count > 1000:
+                #     break
             except EOFError:
                 break
 
