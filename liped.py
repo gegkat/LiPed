@@ -419,6 +419,9 @@ class LiPed(object):
 
     def sample_frames(self):
 
+        sections = N_ANIMATION_SECTIONS
+        width = ANIMATION_SECTION_WIDTH
+
         if USE_SUBSET_FOR_ANIMATION:
             clips = [ [0,     623], 
                       [2553,  2898],
@@ -435,12 +438,11 @@ class LiPed(object):
             for clip in clips:
                 allframes += range(clip[0], clip[1])
 
-            sections = N_ANIMATION_SECTIONS
-            width = ANIMATION_SECTION_WIDTH
+
 
         else:
             # Use all frames
-            allframes = range(len(self.lidar_range[0]))
+            allframes = range(self.lidar_range.shape[0])
 
         # If section is None, return allframes
         if sections is None:
