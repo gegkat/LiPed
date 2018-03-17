@@ -56,6 +56,10 @@ PRED_SNAP_TO_CLOSEST = True
 # Threshold for acceptable ped detection distance
 DIST_THRESH = 2
 
+# Thresholds using get_score_2
+ANGLE_THRESH = 2 * LIDAR_STEP
+DIST_RATIO = 0.001
+
 # Shuffle before train/test split
 TRAIN_TEST_SHUFFLE = True
 

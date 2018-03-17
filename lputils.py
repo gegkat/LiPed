@@ -46,6 +46,29 @@ def get_score(pr, pth, tr, tth):
 
     return false_pos, false_neg, true_pos
 
+def get_score_2(pr, pth, tr, tth):
+    p = np.array(pol2cart(pr, pth)).T
+    t = np.array(pol2cart(tr, tth)).T
+
+    d = cdist(p, t)
+    true_pos = 0
+    for _ in range(max(d.shape)):
+        i, j = np.unravel_index(d.argmin(), d.shape)
+        if d[i, j] == np.inf:
+            break
+        athresh = ANGLE_THRESH
+        angle = np.absolute(pth[i] - tth[j])
+        dthresh = DIST_RATIO * tr[j] * tr[j]
+        dist = np.absolute(pr[i] - tr[j])
+        if angle < athresh and dist < dthresh:
+            true_pos += 1
+            d[i] = np.inf
+        d[:, j] = np.inf
+
+    false_pos = len(px) - true_pos
+    false_neg = len(tx) - true_pos
+    return false_pos, false_neg, true_pos
+
 
 def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None, ped_pos=None):
     '''
