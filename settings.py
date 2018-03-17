@@ -51,7 +51,7 @@ PRED_SNAP_TO_CLOSEST = True
 ### Evaluation
 #################################################################
 # Threshold for acceptable ped detection distance
-DIST_THRESH = 1
+DIST_THRESH = 2
 
 # Shuffle before train/test split
 TRAIN_TEST_SHUFFLE = True
@@ -69,8 +69,8 @@ CROSS_VAL_SIZE = 0.2
 # Thresholds used in allowing a vote to be cast
 # looepd in precision/recall curve
 # THRESHOLDS = np.linspace(0, .98, 10)
-# THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
-THRESHOLDS = [0.99]
+THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
+# THRESHOLDS = [0.99]
 
 # For pedestrian detection in max suppresion
 # Less than 0.5 seems to work
@@ -118,12 +118,12 @@ DPI = 300
 
 # If True use hand picked clips for animation
 # if you want to animate all frames set to False 
-USE_SUBSET_FOR_ANIMATION = True
+USE_SUBSET_FOR_ANIMATION = False
 
 # How many animation sections
 # Use None to animate all frames
-N_ANIMATION_SECTIONS = None
+N_ANIMATION_SECTIONS = 1
 
 # How many consecutive frames to animate for each animation section
-ANIMATION_SECTION_WIDTH = 300
+ANIMATION_SECTION_WIDTH = 30
     
