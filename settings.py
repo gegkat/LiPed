@@ -9,7 +9,13 @@ YOLO_FOV_MIN = -0.5
 YOLO_FOV_MAX = 0.5
 
 # Farthest range of interest
-MAX_R = 10
+MAX_R = 9
+
+# Max distance between points for valid object
+MAX_SEP = .25
+
+# flag for plotting refinement step
+PLOT_REFINEMENT = False
 
 #################################################################
 ### SEGMENTATION 
@@ -76,8 +82,8 @@ CROSS_VAL_SIZE = 0.2
 # Thresholds used in allowing a vote to be cast
 # looepd in precision/recall curve
 # THRESHOLDS = np.linspace(0, .98, 10)
-THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
-# THRESHOLDS = [0.99]
+# THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
+THRESHOLDS = [0.99]
 
 # For pedestrian detection in max suppresion
 # Less than 0.5 seems to work
