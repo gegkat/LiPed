@@ -12,7 +12,24 @@ import cPickle as pickle
 from scipy.interpolate import interp1d
 from scipy.ndimage.filters import gaussian_filter
 from scipy.spatial.distance import cdist
+import shelve
+import os
 
+
+def shelve_settings(udir):
+    # To load settings simply: my_shelf = shelve.open(filename)
+
+    from settings import *
+    my_shelf = shelve.open(os.path.join(udir, 'settings.shelf'),'n') # 'n' for new
+    for key in dir():
+        try:
+            my_shelf[key] = globals()[key]
+        except KeyError:
+            #
+            # __builtins__, my_shelf, and imported modules can not be shelved.
+            #
+            print('ERROR shelving: {0}'.format(key))
+    my_shelf.close()
 
 def get_dist2d(x1, y1, x2, y2):
     return np.sqrt((x2 - x1)**2 + (y2 - y1)**2)

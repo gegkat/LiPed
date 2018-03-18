@@ -323,9 +323,7 @@ class LiPed(object):
         with open(os.path.join(udir, 'train_history_dict.pickle'), 'wb') as file_pi:
             pickle.dump(history.history, file_pi)
 
-        # with open(os.path.join(udir, 'config.log'), 'w') as f:
-        #     f.write(json.dumps(vars(args)))
-        #     self.nn.summary(print_fn=lambda x: f.write(x + '\n'))
+        shelve_settings(udir)
 
         with open(os.path.join(udir, 'model.json'), 'w') as f:
             f.write(json.dumps(self.nn.to_json()))
