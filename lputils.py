@@ -11,8 +11,11 @@ import matplotlib.pyplot as plt
 import cPickle as pickle
 from scipy.interpolate import interp1d
 from scipy.ndimage.filters import gaussian_filter
+from scipy.spatial.distance import cdist
 
 
+def get_dist2d(x1, y1, x2, y2):
+    return np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
 def get_segments_per_frame(length, seg_length, stride):
     return (length - seg_length) // stride + 1
@@ -30,7 +33,7 @@ def get_score(pr, pth, tr, tth):
     L2 = len(tx)
     d = np.zeros((L1,L2))
     for i in range(L1):
-        d[i,:] = np.sqrt((px[i] - tx)**2 + (py[i] - ty)**2)
+        d[i,:] = get_dist2d(px[i], py[i], tx, ty)
 
     while d.shape[0] and d.shape[1]: 
         i,j = np.unravel_index(d.argmin(), d.shape)
@@ -62,11 +65,11 @@ def get_score_2(pr, pth, tr, tth):
         dist = np.absolute(pr[i] - tr[j])
         if angle < athresh and dist < dthresh:
             true_pos += 1
-            d[i] = np.inf
+            d[i, :] = np.inf
         d[:, j] = np.inf
 
-    false_pos = len(px) - true_pos
-    false_neg = len(tx) - true_pos
+    false_pos = p.shape[0] - true_pos
+    false_neg = t.shape[0] - true_pos
     return false_pos, false_neg, true_pos
 
 
@@ -237,9 +240,10 @@ def snap_to_closest(xp, yp, xd, yd):
 
     return xp, yp
 
-def filter_partial_points(lidar_range):
-    d = lidar_range[:, 1:] - lidar_range[:, :-1]
-    thresh = MAX_R * LIDAR_STEP
+def filter_partial_points(lidar_range, lidar_angle):
+    x, y = pol2cart(lidar_range, lidar_angle)
+    d = get_dist2d(x[:, 1:],  y[:, 1:], x[:, :-1], y[:, :-1])
+    thresh = MAX_SEP
     f = np.logical_and(d[:, :-1] > thresh, d[:, 1:] > thresh)
     lidar_range[:, 1:-1][f] = 0
 
