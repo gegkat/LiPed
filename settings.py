@@ -9,10 +9,10 @@ YOLO_FOV_MIN = -0.5
 YOLO_FOV_MAX = 0.5
 
 # Farthest range of interest
-MAX_R = 9
+MAX_R = 1000 #9
 
 # Max distance between points for valid object
-MAX_SEP = .25
+MAX_SEP = 1000 # .25
 
 # flag for plotting refinement step
 PLOT_REFINEMENT = False

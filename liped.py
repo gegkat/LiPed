@@ -49,7 +49,6 @@ class LiPed(object):
                 kind='nearest', fill_value='extrapolate')
             idx = interp_func(ped_time).astype(int)
 
-            ped_onehot = ped_to_onehot(ped_pos, self.lidar_angle)
 
             # Keep only lidar scans that match pedestrian detections
             lidar_time = lidar_time[idx]
@@ -67,15 +66,13 @@ class LiPed(object):
             np.save(data_dir + '/lidar_range', lidar_range)
             np.save(data_dir + '/ped_time', ped_time)
             np.save(data_dir + '/ped_pos', ped_pos)
-            np.save(data_dir + '/ped_onehot', ped_onehot)
         else:
             lidar_time = np.load(data_dir + '/lidar_time.npy')
             lidar_range = np.load(data_dir + '/lidar_range.npy')
             ped_time = np.load(data_dir + '/ped_time.npy')
             ped_pos = np.load(data_dir + '/ped_pos.npy')
-            ped_onehot = np.load(data_dir + '/ped_onehot.npy')
 
-            
+
         if PLOT_REFINEMENT: 
             before = np.copy(lidar_range)
 
@@ -95,11 +92,17 @@ class LiPed(object):
                 plt.gca().set_aspect('equal', adjustable='box-forced')
                 plt.show()
 
+        # Remove YOLO pedestrian detections beyond max R
+        for i in range(ped_pos.shape[0]):
+            ped_pos[i] = [[x,y] for x, y in ped_pos[i] if not (x**2 + y**2)**0.5 > MAX_R]
+
         self.lidar_time = lidar_time
         self.lidar_range = lidar_range
         self.ped_time = ped_time
         self.ped_pos = ped_pos
-        self.ped_onehot = ped_onehot
+
+        print('ped to one hot')
+        self.ped_onehot = ped_to_onehot(self.ped_pos, self.lidar_angle)
 
         self.N_frames = self.lidar_range.shape[0]
         print("Data contains {} frames".format(self.N_frames))
