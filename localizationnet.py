@@ -26,15 +26,12 @@ class LocNet(LiPed):
     def _build_nn(self):
         width = self.X_train.shape[1]
         model = Sequential()
-        model.add(Conv1D(500,SEGL, strides=1, activation='relu', 
+        model.add(Conv1D(N_LOCNET_NODES,SEGL, strides=1, activation='relu', 
             input_shape=(None, 1)))
-        model.add(Dropout(0.2))
-        model.add(Conv1D(500,1, strides=1, activation='relu'))
-        model.add(Dropout(0.2))
-        model.add(Conv1D(500,1, strides=1, activation='relu'))
-        model.add(Dropout(0.2))
-        model.add(Conv1D(500,1, strides=1, activation='relu'))
-        model.add(Dropout(0.2))
+        for _ in range(N_LOCNET_LAYERS - 1):
+            model.add(Dropout(DROPOUT_RATE))
+            model.add(Conv1D(N_LOCNET_NODES,1, strides=1, activation='relu'))
+        model.add(Dropout(DROPOUT_RATE))
         model.add(Conv1D(2,1, strides=1))
         model.compile(loss='mse',
                       optimizer='adam', 

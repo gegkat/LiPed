@@ -50,24 +50,38 @@ TH_SCALE = LIDAR_STEP * WINDOW
 
 # Options for localization prediction
 USE_LOCNET = True
-LOCNET_TYPE = 'polar' # 'polar' or 'cartesian'
+LOCNET_TYPE = 'cartesian' # 'polar' or 'cartesian'
 
 # Snap to closest lidar point after prediction
 PRED_SNAP_TO_CLOSEST = True
 
+# Number of noes in hidden layers for classification net
+N_NODES = 50
+
+# Number of hidden layers in classification net
+N_LAYERS = 3
+
+# Training droup out rate
+DROPOUT_RATE = 0.2
+
+# Number of nodes in hidden layers for localization net
+N_LOCNET_NODES = 200
+
+# Number of hidden layers in localizaiton net
+N_LOCNET_LAYERS = 3
 
 #################################################################
 ### Evaluation
 #################################################################
 # Threshold for acceptable ped detection distance
-DIST_THRESH = 2
+DIST_THRESH = 1
 
 # Thresholds using get_score_2
 ANGLE_THRESH = 2 * LIDAR_STEP
 DIST_RATIO = 0.001
 
 # Shuffle before train/test split
-TRAIN_TEST_SHUFFLE = True
+TRAIN_TEST_SHUFFLE = False
 
 # Percent of data to reserve for testing
 TEST_SIZE = 0.2 # 0.2
@@ -82,8 +96,8 @@ CROSS_VAL_SIZE = 0.2
 # Thresholds used in allowing a vote to be cast
 # looepd in precision/recall curve
 # THRESHOLDS = np.linspace(0, .98, 10)
-# THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
-THRESHOLDS = [0.99]
+THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
+# THRESHOLDS = [0.99]
 
 # For pedestrian detection in max suppresion
 # Less than 0.5 seems to work
@@ -127,7 +141,7 @@ FPS = 30
 # Animation pixel density
 # 100 for speed
 # 300 for quality
-DPI = 300
+DPI = 100
 
 # If True use hand picked clips for animation
 # if you want to animate all frames set to False 

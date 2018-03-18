@@ -23,10 +23,12 @@ class CNNLiPed(LiPed):
     def _build_nn(self):
         width = self.X_train.shape[1]
         model = Sequential()
-        model.add(Conv1D(200,SEGL, strides=1, activation='relu', 
+        model.add(Conv1D(N_NODES,SEGL, strides=1, activation='relu', 
             input_shape=(None, 1)))
-        model.add(Conv1D(200,1, strides=1, activation='relu'))
-        model.add(Conv1D(200,1, strides=1, activation='relu'))
+        for _ in range(N_LAYERS - 1):
+            model.add(Dropout(DROPOUT_RATE))
+            model.add(Conv1D(N_NODES,1, strides=1, activation='relu'))
+        model.add(Dropout(DROPOUT_RATE))
         model.add(Conv1D(1,1, strides=1, activation='sigmoid'))
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',
