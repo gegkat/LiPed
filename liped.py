@@ -21,7 +21,7 @@ from settings import *
 
 class LiPed(object):
     def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data',
-                 regression=False, refine=True):
+                 regression=False):
     #################################################################
     ### INITIALIZATION AND UTILITIES
     #################################################################
@@ -75,23 +75,25 @@ class LiPed(object):
             ped_pos = np.load(data_dir + '/ped_pos.npy')
             ped_onehot = np.load(data_dir + '/ped_onehot.npy')
 
-        before = np.copy(lidar_range)
-        if refine:
-            # Clamping data
-            np.clip(lidar_range, lidar_range.min(), MAX_R, out=lidar_range)
-            # Filter out partial points
-            filter_partial_points(lidar_range, self.lidar_angle)
+            
+        if PLOT_REFINEMENT: 
+            before = np.copy(lidar_range)
 
-            if PLOT_REFINEMENT:
-                x, y = pol2cart(before, self.lidar_angle)
-                x2, y2 = pol2cart(lidar_range, self.lidar_angle)
-                for i in range(0, x.shape[0], 20):
-                    plt.plot(y[i,:], x[i,:], '.')
-                    idx = y[i,:] != y2[i,:]
-                    plt.plot(y[i,idx], x[i,idx], 'o', fillstyle='none')
-                    plt.plot(y2[i,:], x2[i,:], 'x')
-                    plt.gca().set_aspect('equal', adjustable='box-forced')
-                    plt.show()
+        # Clamping data
+        np.clip(lidar_range, lidar_range.min(), MAX_R, out=lidar_range)
+        # Filter out partial points
+        filter_partial_points(lidar_range, self.lidar_angle)
+
+        if PLOT_REFINEMENT:
+            x, y = pol2cart(before, self.lidar_angle)
+            x2, y2 = pol2cart(lidar_range, self.lidar_angle)
+            for i in range(0, x.shape[0], 20):
+                plt.plot(y[i,:], x[i,:], '.')
+                idx = y[i,:] != y2[i,:]
+                plt.plot(y[i,idx], x[i,idx], 'o', fillstyle='none')
+                plt.plot(y2[i,:], x2[i,:], 'x')
+                plt.gca().set_aspect('equal', adjustable='box-forced')
+                plt.show()
 
         self.lidar_time = lidar_time
         self.lidar_range = lidar_range
