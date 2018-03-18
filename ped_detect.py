@@ -7,6 +7,7 @@ from enum import Enum
 from simpleliped import SimpleLiPed
 from cnnliped import CNNLiPed
 from localizationnet import LocNet
+import os
 
 
 class LiPedType(Enum):
@@ -56,10 +57,15 @@ if __name__ == '__main__':
         print("Traning model for {} epochs".format(args.epochs))
         lp.train(epochs=args.epochs)
 
-    if args.loc_model:
-        lp.load_localization_model(args.loc_model[0])
-
     if not regression:
+        if args.loc_model:
+            lp.load_localization_model(args.loc_model[0])
+        else:
+            lptype2 = LiPedType['locnet'].value
+            lp2 = lptype2(data_dir=args.data_dir, regression=True)
+            lp2.train(epochs=args.epochs)
+            lp.load_localization_model(os.path.join(lp2.udir, 'model.h5'))
+
         lp.precision_recall()
 
         if args.do_animation:
