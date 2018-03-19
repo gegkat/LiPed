@@ -63,13 +63,13 @@ class CNNLiPed(LiPed):
         self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
 
         print("Over sampling")
-        sampler = SMOTE(ratio='minority', random_state=42)
+        # sampler = SMOTE(ratio='minority', random_state=42)
 
         # Under sampling option
         # print("Under sampling")
         # sampler = ClusterCentroids(random_state=42)
         # sampler = RandomUnderSampler(random_state=42)
-        self.X_train, self.Y_train = sampler.fit_sample(self.X_train, self.Y_train)
+        # self.X_train, self.Y_train = sampler.fit_sample(self.X_train, self.Y_train)
 
         # Change dimensions for convolutional
         self.X_train = np.expand_dims(self.X_train, 2)

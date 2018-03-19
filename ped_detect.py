@@ -25,7 +25,7 @@ if __name__ == '__main__':
         help='LiPed type to train')
     parser.add_argument('-i', '--init', nargs=2,
         help='initial load of raw data, else will load preprocessed data')
-    parser.add_argument('-e', '--epochs', type=int, default=5,
+    parser.add_argument('-e', '--epochs', type=int, default=3,
         help='epochs to train')
     parser.add_argument('-d', '--data_dir', default='data',
         help='initial load of raw data, else will load preprocessed data') 
@@ -63,7 +63,7 @@ if __name__ == '__main__':
         else:
             lptype2 = LiPedType['locnet'].value
             lp2 = lptype2(data_dir=args.data_dir, regression=True)
-            lp2.train(epochs=args.epochs)
+            lp2.train(epochs=10)
             lp.load_localization_model(os.path.join(lp2.udir, 'model.h5'))
 
         lp.precision_recall()

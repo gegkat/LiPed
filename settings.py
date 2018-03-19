@@ -5,11 +5,11 @@ LIDAR_MAX = 1.6929693222
 LIDAR_STEP = 0.00872664619237
 
 # Field of view limit for YOLO
-YOLO_FOV_MIN = -0.5
-YOLO_FOV_MAX = 0.5
+YOLO_FOV_MIN = -0.6
+YOLO_FOV_MAX = 0.6
 
 # Farthest range of interest
-MAX_R = 1000 #9
+MAX_R = 8 #9
 
 # Max distance between points for valid object
 MAX_SEP = 1000 # .25
@@ -96,8 +96,9 @@ CROSS_VAL_SIZE = 0.2
 # Thresholds used in allowing a vote to be cast
 # looepd in precision/recall curve
 # THRESHOLDS = np.linspace(0, .98, 10)
-THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
+# THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
 # THRESHOLDS = [0.5, 0.95, 0.995] #[0.5, 0.999]
+THRESHOLDS = [0.01, 0.1, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.9, 0.99]
 
 # For pedestrian detection in max suppresion
 # Less than 0.5 seems to work
