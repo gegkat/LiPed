@@ -26,9 +26,9 @@ class CNNLiPed(LiPed):
         model.add(Conv1D(N_NODES,SEGL, strides=1, activation='relu', 
             input_shape=(None, 1)))
         for _ in range(N_LAYERS - 1):
-            model.add(Dropout(DROPOUT_RATE))
+            # model.add(Dropout(DROPOUT_RATE))
             model.add(Conv1D(N_NODES,1, strides=1, activation='relu'))
-        model.add(Dropout(DROPOUT_RATE))
+        # model.add(Dropout(DROPOUT_RATE))
         model.add(Conv1D(1,1, strides=1, activation='sigmoid'))
         model.compile(loss='binary_crossentropy',
                       optimizer='adam',

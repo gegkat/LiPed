@@ -18,7 +18,9 @@ from sklearn.model_selection import train_test_split
 from lputils import *
 from settings import *
 
-
+np.set_printoptions(precision=4,
+                       threshold=10000,
+                       linewidth=150)
 class LiPed(object):
     def __init__(self, init=False, laser_file='', pedestrian_file='', data_dir='data',
                  regression=False):
@@ -32,14 +34,7 @@ class LiPed(object):
         self.pred_thresh = 0.5 
 
 
-        self.lidar_angle = np.arange(LIDAR_MIN, LIDAR_MAX, LIDAR_STEP)
 
-        #### @TODO: TEMPORARY HACK to change dimension from 389 to 387 ####
-        self.lidar_angle = self.lidar_angle[1:-1]
-        self.in_view = np.logical_and(self.lidar_angle > YOLO_FOV_MIN, self.lidar_angle < YOLO_FOV_MAX)
-
-        if regression:
-            self.in_view[:] = True
 
         if init:
             lidar_time, lidar_range = load_laser_data(laser_file)
@@ -72,6 +67,16 @@ class LiPed(object):
             ped_time = np.load(data_dir + '/ped_time.npy')
             ped_pos = np.load(data_dir + '/ped_pos.npy')
 
+
+        self.lidar_angle = np.arange(LIDAR_MIN, LIDAR_MAX, LIDAR_STEP)
+
+        #### @TODO: TEMPORARY HACK to change dimension from 389 to 387 ####
+        if lidar_range.shape[1] == 387:
+            self.lidar_angle = self.lidar_angle[1:-1]
+        self.in_view = np.logical_and(self.lidar_angle > YOLO_FOV_MIN, self.lidar_angle < YOLO_FOV_MAX)
+
+        if regression:
+            self.in_view[:] = True
 
         if PLOT_REFINEMENT: 
             before = np.copy(lidar_range)
@@ -206,6 +211,9 @@ class LiPed(object):
         false_pos = np.zeros((N_threshes))
         false_neg = np.zeros((N_threshes))
         true_pos =  np.zeros((N_threshes))
+        fpc = np.zeros((N_frames, N_threshes))
+        fnc = np.zeros((N_frames, N_threshes))
+        tpc = np.zeros((N_frames, N_threshes))
 
         # Run entire test set through network
         pred_probability, pred_r, pred_th = self.predict_prob(
@@ -240,8 +248,11 @@ class LiPed(object):
 
                 fp, fn, tp = get_score(
                     pred_r[i,j], pred_th[i,j], truth_r, truth_th)
+                fpc[i,j] = fp
+                fnc[i,j] = fn
+                tpc[i,j] = tp
 
-                if DO_EVALUATION_PLOT: 
+                if DO_EVALUATION_PLOT and i%50==0: 
                     lx, ly = pol2cart(self.X_test[i,:], self.lidar_angle[self.in_view])
                     plt.plot(ly, lx, '.', linestyle='', marker='.', 
                     markeredgecolor='gray', markersize=2)
@@ -253,7 +264,7 @@ class LiPed(object):
                     plt.plot(truth_y, truth_x,  linestyle='', marker='s', 
                     markeredgecolor='g', markersize=5, fillstyle='none',
                     markeredgewidth=0.5)
-                    plt.title("fp: {}, fn: {}, tp: {}".format(fp, fn, tp))
+                    plt.title("frame: {}, thresh {}, fp: {}, fn: {}, tp: {}".format(i, j, fp, fn, tp))
                     plt.gca().set_xlim(XLIMS)
                     plt.gca().set_ylim(YLIMS)
                     plt.gca().invert_xaxis()

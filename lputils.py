@@ -158,10 +158,10 @@ def apply_thresholds(prob, thresholds, r, th, raw_r=None, raw_th=None, ped_pos=N
                     truth_y = truth_pos[:,1]
 
                 # Skip negative examples if desired
-                if len(truth_x) < 3 or len(xout) < 2:
+                if len(truth_x) < 0 or len(xout) < 0:# or i%50<49:
                     continue
 
-                fig = plt.figure()
+                plt.subplot(1, N_threshes, j+1)
                 score[score < MIN_SCORE] = np.nan # blank out background 0's
                 plt.pcolormesh(Ym.T, Xm.T, score.T, cmap='Reds') # magma looks nice
                 plt.plot(rawy, rawx, linestyle='', marker='.', markeredgecolor='black', markersize=2)

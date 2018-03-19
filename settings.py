@@ -56,7 +56,7 @@ LOCNET_TYPE = 'cartesian' # 'polar' or 'cartesian'
 PRED_SNAP_TO_CLOSEST = True
 
 # Number of noes in hidden layers for classification net
-N_NODES = 50
+N_NODES = 200
 
 # Number of hidden layers in classification net
 N_LAYERS = 3
@@ -65,10 +65,10 @@ N_LAYERS = 3
 DROPOUT_RATE = 0.2
 
 # Number of nodes in hidden layers for localization net
-N_LOCNET_NODES = 200
+N_LOCNET_NODES = 500
 
 # Number of hidden layers in localizaiton net
-N_LOCNET_LAYERS = 3
+N_LOCNET_LAYERS = 4
 
 #################################################################
 ### Evaluation
@@ -81,7 +81,7 @@ ANGLE_THRESH = 2 * LIDAR_STEP
 DIST_RATIO = 0.001
 
 # Shuffle before train/test split
-TRAIN_TEST_SHUFFLE = False
+TRAIN_TEST_SHUFFLE = True
 
 # Percent of data to reserve for testing
 TEST_SIZE = 0.2 # 0.2
@@ -97,7 +97,7 @@ CROSS_VAL_SIZE = 0.2
 # looepd in precision/recall curve
 # THRESHOLDS = np.linspace(0, .98, 10)
 THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.8, 0.9, 0.95, .97, .975, 0.98, .985, 0.99, .995, 0.999]
-# THRESHOLDS = [0.99]
+# THRESHOLDS = [0.5, 0.95, 0.995] #[0.5, 0.999]
 
 # For pedestrian detection in max suppresion
 # Less than 0.5 seems to work
@@ -149,8 +149,8 @@ USE_SUBSET_FOR_ANIMATION = False
 
 # How many animation sections
 # Use None to animate all frames
-N_ANIMATION_SECTIONS = 1
+N_ANIMATION_SECTIONS = 3
 
 # How many consecutive frames to animate for each animation section
-ANIMATION_SECTION_WIDTH = 30
+ANIMATION_SECTION_WIDTH = 100
     
