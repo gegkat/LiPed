@@ -70,6 +70,9 @@ N_LOCNET_NODES = 500
 # Number of hidden layers in localizaiton net
 N_LOCNET_LAYERS = 4
 
+# Weight positive examples proportional to their frequency
+DO_WEIGHTED_SAMPLING = False
+
 #################################################################
 ### Evaluation
 #################################################################

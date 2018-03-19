@@ -306,20 +306,26 @@ class LiPed(object):
         start_time = time.time()
 
         # Get recall/precision/f1 metrics to set as callback function
+        sample_weights = np.ones(self.Y_train.shape[0])
         if regression:
             callbacks = []
         else:
             callbacks = [Metrics()]
 
+            if DO_WEIGHTED_SAMPLING:
+                N_pos = np.sum(self.Y_train)
+                N_neg = self.Y_train.shape[0] - N_pos
+                sample_weights[self.Y_train[:,0,0]] = N_neg/float(N_pos)
+
         # Train/validation split
         print(self.nn.summary())
-        self.X_train, self.X_val, self.Y_train, self.Y_val, = train_test_split(
-            self.X_train, self.Y_train, test_size=CROSS_VAL_SIZE, 
+        self.X_train, self.X_val, self.Y_train, self.Y_val, sw_train, sw_val = train_test_split(
+            self.X_train, self.Y_train, sample_weights, test_size=CROSS_VAL_SIZE, 
             shuffle=True, random_state=42)
         history = self.nn.fit(self.X_train, self.Y_train, 
                     batch_size=128, epochs=epochs, verbose=1, 
-                    shuffle=True, validation_data=(self.X_val, self.Y_val), 
-                    callbacks=callbacks)
+                    shuffle=True, validation_data=(self.X_val, self.Y_val, sw_val), 
+                    callbacks=callbacks, sample_weight=sw_train) #, class_weight=cw)
 
         end_time = time.time()
         print('Trained model in {:.2f} seconds'.format(end_time-start_time))

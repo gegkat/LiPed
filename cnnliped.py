@@ -62,7 +62,7 @@ class CNNLiPed(LiPed):
         print("Segmenting training data")
         self.X_train, self.Y_train = self.segment_data(self.X_train, self.Y_train)
 
-        print("Over sampling")
+        # print("Over sampling")
         # sampler = SMOTE(ratio='minority', random_state=42)
 
         # Under sampling option
