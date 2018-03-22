@@ -185,6 +185,7 @@ class LiPed(object):
         plt.legend(['precision', 'recall', 'F1 Score'])
         plt.title('Max F1: {:.3f} at {}'.format(F1s[i_max], THRESHOLDS[i_max]))
         plt.xlabel('threshold')
+        plt.gca().grid(linestyle='-', linewidth=1)
         self.savefig('F1_vs_thresh.png')
 
         plt.figure()
@@ -193,6 +194,7 @@ class LiPed(object):
         plt.ylabel('recall')
         plt.gca().set_xlim((0,1))
         plt.gca().set_ylim((0,1))
+        plt.gca().grid(linestyle='-', linewidth=2)
         self.savefig('precision_recall.png')
 
         data_dict = {"threshes": THRESHOLDS, 

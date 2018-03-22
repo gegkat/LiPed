@@ -123,7 +123,7 @@ FILTER_SIGMA = 0.1/SCORE_RES # 0.1/SCORE_RES
 FILTER_TRUNCATE = 2.0
 
 # Minimum distance between predictions after non-max supression
-NMS_DIST_THRESH = 0.8*DIST_THRESH
+NMS_DIST_THRESH = 0.8
 
 #################################################################
 ### PLOTTING
