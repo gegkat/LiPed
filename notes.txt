@@ -1,0 +1,137 @@
+Notes
+
+ For some reason oversampling over predicts positive and not oversampling under predicts positives at 0.5 threshold. This is with only labeling pedestrians if YOLO is on the center pixel. 
+
+ Need to make a movie for test set. Seems like we are actually doing a decent job already if we can remove duplicates and penalize only angle not distance. 
+
+
+Observations from second data set
+ - In beginning there are several objects in the distance that look like pedestrians that are never labeled by yolo
+ - There are a lot of frames where yolo labels the center island as a pedestrian
+ - Should increase the field of view for yolo slightly
+ - Comes back around minute 14
+
+BASELINE: baseline_2018-03-17_23-51-17, Max F1 0.335, very low precision (many false +)
+ - Refinement off
+ - Shuffle test data off
+ - 20% test set
+ - 10 epochs
+ - cartesian
+ - train using padding
+ - window 6, padding 7
+ When I evaluate on shuffled test set then Max F1 increases to 0.52
+
+
+ Run 2 - baseline50polar_2018-03-18_05-36-40, Max F1 0.38, very low precision (many false +)
+ - change to polar
+ - Increase # of nodes to 200
+ - Increase # of nodes to 500 for locnet
+ - Increase # of layers to 4 for locnet
+ - comment out dropout for cnn
+ - 50 epochs
+ - train/test shuffle = false
+ When I evaluate on shuffled test set then Max F1 increases to 0.56
+
+
+ Run 3 - Just look at data-ff-full
+ polar_ff_2018-03-18_10-52-52
+ Max F1 0.49, low precision (many false +)
+ When I evaluate on shuffled test set then Max F1 increases to 0.58
+
+If I run 98percent_2018-03-02_04-34-36/model.h5 --loc_model locnet_2018-03-04_11-40-04/model.h5 -d archive/data-ff-full/
+with shuffle on, I get Max F1 0.69
+
+If I run 98percent_2018-03-02_04-34-36/model.h5 --loc_model locnet_2018-03-04_11-40-04/model.h5 on combined data
+with shuffle on, I get Max F1 0.50
+
+Run 4 - run4_2018-03-18_22-56-37 - max F1 0.641
+ - cartesian
+ - 200/500 nodes
+ - 3/4 layers
+ - no cnn dropout
+ - 10 epochs
+ - train/test shuffle = true
+ - use archive/data-ff-full
+
+Run 5 - run5_2018-03-18_23-11-38 - max F1 0.62
+ - Same as run 4 but only 3 epochs for classification
+ - Use run 4 regression model
+
+Run 6 - run6_locnet_2018-03-18_23-17-27 - max F1 0.55
+ - Just locnet
+ - polar instead of cartesian, otherwise same as run 4
+ - Use run 5 classification model
+
+Run 7 - run7_2018-03-18_23-26-59 - max F1 0.594
+ - Same as run 5 but add dropout for classification
+ - Use run 4 regression model
+
+Run 8 - run8_locnet_2018-03-18_23-33-35 - max F1 0.64  
+ - Just locnet
+ - no dropout, otherwise same as run 4
+ - Use run 5 classification model
+
+Run 9 - run9_2018-03-18_23-54-48 - max F1 0.65
+ - Max_R = 9 meters, otherwise same as run 8 (no dropout, 3 epoch)
+
+Run 10 - run10_2018-03-19_00-04-56 - max F1 0.632
+ - MAX_SEP = 0.25, otherwise same as run 9 (no dropout, 3 epoch, Max_R = 9)
+
+Run 11 - run11_2018-03-19_00-14-53 - max F1 0.63
+ - No oversampling for classification, otherwise same as run 9
+ - Use Run 9 loc model
+ - interestingly, training actually gives low precision/recall and optimal threshold is near 0.5
+ - Removing prediction snap lowers to 0.59
+
+Run 12 - run12_2018-03-19_00-31-40 - max F1 0.70 
+ - Widen FOV to -0.6 to 0.6, otherwise same as 11
+
+Run 13 - run13_2018-03-19_00-38-41 - max F1 0.73
+ - Max_R = 8, otherwise same as run 12
+
+Run 14 - run14_2018-03-19_00-52-05 - max F1 0.71
+ - MAX_SEP = 0.5, otherwise same as run 13
+
+Run 15 - run15_2018-03-19_01-04-50 - max F1 0.57
+ - window = 1, otherwise same as 13 
+ - strangely only very low thresholds seemed to give results and training
+ had 0 precision/recall for classification model
+
+Run 16 - run16_2018-03-19_01-11-34 - max F1 0.685
+ - window = 3, otherwise same as 13 
+
+Run 17 - run17_2018-03-19_01-19-14- max F1 0.71
+ - window = 10, otherwise same as 13 
+
+Run 18 - run18_2018-03-19_01-28-16 - max F1 0.65
+ - padding 11, otherwise same as 13 
+
+Run 19 - run19_2018-03-19_01-35-16 - max F1 0.71
+ - padding 4, otherwise same as 13 
+
+Run 20 - run20_2018-03-19_03-19-26 - max F1 0.75
+  - same as run 13 but 100 epochs for classification and regression
+  - Removing prediction snap lower to 0.73
+  - Test shuffled new data set, with predict snap: 0.48. Lowered both precision and recall, but definitely bigger problem is the precision. Proportion of false positives goes way up apparently. 
+  - Test shuffled new data set, no predict snap: 0.31. 
+  - Evaluate with 0.5 meter thresh: 0.68
+  - Evaluate with 1.5 meter thresh: 0.76
+  - no snap, 0.4 meter: 0.66
+  - no snap, 0.7 meter: 0.72
+  - no snap, 1.3 meter: 0.74
+  - no span, 1.6 meter: 0.75
+  - full data set, no snap, with shuffle: 0.53
+
+Run 21 - run21_2018-03-19_09-51-33 - max F1 0.63
+  - Same as 13 (back to 3 and 10 epochs) but train/test on new data set only
+  - no predict snap lowers to 0.56
+  - Test shuffled first data set: 0.43
+
+Run 22 - run22_2018-03-19_16-01-43 - max F1 0.72
+  - use sample weight in training
+
+Run 23 - run23_2018-03-19_16-19-22 - max F1 0.73
+ - 5 layers in CNN, otherwise run13
+
+ Run 24 - run23_2018-03-19_16-19-22 - max F1 0.72
+ - 1000 nodes CNN, otherwise run13
